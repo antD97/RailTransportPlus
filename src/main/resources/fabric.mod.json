@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "railtransportplus",
+  "version": "${version}",
+
+  "name": "Rail Transport Plus",
+  "description": "Adds linkable minecarts and faster than default minecart top speed.",
+  "authors": [
+    "antD97"
+  ],
+  "contact": {
+    "homepage": "https://github.com/antD97/RailTransportPlus",
+    "issues": "https://github.com/antD97/RailTransportPlus/issues",
+    "sources": "https://github.com/antD97/RailTransportPlus"
+  },
+
+  "license": "MIT",
+  "icon": "assets/modid/icon.png",
+
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.antd.railtransportplus.RailTransportPlus"
+    ]
+  },
+  "mixins": [
+    "railtransportplus.mixins.json"
+  ],
+
+  "depends": {
+    "fabricloader": ">=0.14.11",
+    "fabric-api": "*",
+    "minecraft": "~1.19.2",
+    "java": ">=17"
+  }
+}
