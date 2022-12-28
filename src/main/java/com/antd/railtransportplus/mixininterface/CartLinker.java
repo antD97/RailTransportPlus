@@ -6,9 +6,7 @@ package com.antd.railtransportplus.mixininterface;
 
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 
-/**
- * All methods expected to be called on the server thread.
- */
+/** All methods expected to be called on the server thread. */
 public interface CartLinker {
 
     /**

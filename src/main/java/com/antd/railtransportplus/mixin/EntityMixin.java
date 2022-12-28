@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Entity.class)
 public abstract class EntityMixin {
 
-    @Inject(at = @At("TAIL"), method = "remove(Lnet/minecraft/entity/Entity$RemovalReason;)V")
+    @Inject(at = @At("RETURN"), method = "remove(Lnet/minecraft/entity/Entity$RemovalReason;)V")
     public void remove(Entity.RemovalReason reason, CallbackInfo ci) {
         final var thisEntity = (Entity) (Object) this;
 

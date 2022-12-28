@@ -3,15 +3,25 @@ package com.antd.railtransportplus.mixin;
 import com.antd.railtransportplus.LinkResult;
 import com.antd.railtransportplus.RailTransportPlus;
 import com.antd.railtransportplus.mixininterface.LinkableCart;
+import com.antd.railtransportplus.mixininterface.PoweredRailIgnorable;
+import net.minecraft.block.AbstractRailBlock;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.RailBlock;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.entity.vehicle.FurnaceMinecartEntity;
+import net.minecraft.tag.BlockTags;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.LinkedList;
 
@@ -36,18 +46,115 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
     train.add((AbstractMinecartEntity) (Object) this);
     }
 
-    @Inject(at = @At("TAIL"), method = "tick()V")
-    public void tickTail(CallbackInfo ci) {
+    @Inject(at = @At("RETURN"), method = "getMaxSpeed()D", cancellable = true)
+    public void getMaxSpeed(CallbackInfoReturnable<Double> cir) {
+        final var boostMultiplier = RailTransportPlus.worldConfig.maxBoostedSpeed / 8.0;
+        if (nextCart != null) cir.setReturnValue(cir.getReturnValue() * boostMultiplier * 2.0);
+    }
+
+    @Inject(at = @At("RETURN"), method = "tick()V")
+    public void tickReturn(CallbackInfo ci) {
 
         if (!this.world.isClient()) {
             isTicked = true;
 
+            // if all carts were ticked
+            if (train.stream().allMatch(c -> ((LinkableCart) c).railtransportplus$isTicked())) {
+                // all trailing carts...
+                for (var cart : train) {
+                    final var linkableCart = (LinkableCart) cart;
+                    final var nextCart = linkableCart.railtransportplus$getNextCart();
+                    if (nextCart != null) {
+
+                        final var originalVelocity = cart.getVelocity();
+
+                        if (cart.getPos().distanceTo(nextCart.getPos()) > 1.67) {
+
+                            // calculate cart pull velocity
+                            final var vectorToCart = nextCart.getPos().subtract(cart.getPos());
+
+                            // limit how close the cart can move to the target
+                            var speedLimit = Math.max(
+                                    vectorToCart.horizontalLength() - 1.67,
+                                    0
+                            );
+                            // diagonal speed limit
+                            if (vectorToCart.x != 0 && vectorToCart.z != 0) {
+                                speedLimit = Math.sqrt((speedLimit * speedLimit) / 2); // pythagoras
+                            }
+
+                            final var horizontalSpeed = Math.min(
+                                    ((AbstractMinecartEntityInvoker) cart).invokeGetMaxSpeed(),
+                                    speedLimit
+                            );
+
+                            double xVel = 0;
+                            if (vectorToCart.x > 0) xVel = horizontalSpeed;
+                            else if (vectorToCart.x < 0) xVel = -horizontalSpeed;
+
+                            double zVel = 0;
+                            if (vectorToCart.z > 0) zVel = horizontalSpeed;
+                            else if (vectorToCart.z < 0) zVel = -horizontalSpeed;
+
+                            // apply cart pull velocity
+                            cart.setVelocity(new Vec3d(xVel, 0, zVel));
+
+                            int i = MathHelper.floor(cart.getX());
+                            int j = MathHelper.floor(cart.getY());
+                            int k = MathHelper.floor(cart.getZ());
+                            if (cart.world.getBlockState(new BlockPos(i, j - 1, k)).isIn(BlockTags.RAILS)) {
+                                --j;
+                            }
+
+                            BlockPos blockPos = new BlockPos(i, j, k);
+                            BlockState blockState = cart.world.getBlockState(blockPos);
+                            if (AbstractRailBlock.isRail(blockState)) {
+                                final var block = (AbstractRailBlock) blockState.getBlock();
+
+                                final var railBlock = (RailBlock) Blocks.RAIL;
+
+                                final var railState =
+                                        railBlock.getDefaultState().with(railBlock.getShapeProperty(),
+                                                blockState.get(block.getShapeProperty()));
+
+                                ((AbstractMinecartEntityInvoker) cart).invokeMoveOnRail(blockPos,
+                                        railState);
+                            } else {
+                                ((AbstractMinecartEntityInvoker) cart).invokeMoveOffRail();
+                            }
+                        }
+
+                        // reset ticked & restore original velocity
+                        linkableCart.railtransportplus$resetTicked();
+                        cart.setVelocity(originalVelocity);
+                    }
+                }
+            }
+
+            // debug log
             if (((AbstractMinecartEntity) (Object) this).getScoreboardTags().contains("debug")) {
                 RailTransportPlus.LOGGER.info("--------------------");
-                for (var cart : this.train)
-                    RailTransportPlus.LOGGER.info(cart.toString());
+                if (((LinkableCart)(Object)this).railtransportplus$getNextCart() != null) {
+                    RailTransportPlus.LOGGER.info(((AbstractMinecartEntity) (Object) this).getPos().distanceTo(nextCart.getPos()) + "");
+                }
+//                for (var cart : this.train) {
+////                    RailTransportPlus.LOGGER.info(cart.toString());
+//
+//                }
             }
         }
+    }
+
+    @Inject(at = @At("HEAD"), method = "moveOnRail(Lnet/minecraft/util/math/BlockPos;" +
+            "Lnet/minecraft/block/BlockState;)V")
+    public void moveOnRailHead(BlockPos pos, BlockState state, CallbackInfo ci) {
+        if (nextCart != null) ((PoweredRailIgnorable) state).setIgnorePoweredRail(true);
+    }
+
+    @Inject(at = @At("RETURN"), method = "moveOnRail(Lnet/minecraft/util/math/BlockPos;" +
+            "Lnet/minecraft/block/BlockState;)V")
+    public void moveOnRailReturn(BlockPos pos, BlockState state, CallbackInfo ci) {
+        ((PoweredRailIgnorable) state).setIgnorePoweredRail(false);
     }
 
 /* ---------------------------------------- Linkable Cart --------------------------------------- */
@@ -233,13 +340,4 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
 
         return train;
     }
-
-/* --------------------------------- Helpers -------------------------------- */
-
-//    private LinkResult checkLimits(LinkedList<AbstractMinecartEntity> train) {
-//        var furnaceCartCount = this.train.stream()
-//                .filter((cart) -> cart instanceof FurnaceMinecartEntity).count();
-//        furnaceCartCount += otherCartTrain.stream()
-//                .filter((cart) -> cart instanceof FurnaceMinecartEntity).count();
-//    }
 }
