@@ -8,7 +8,10 @@
     "AbstractMinecartEntityInvoker",
     "AbstractMinecartEntityMixin",
     "EntityMixin",
-    "PlayerEntityMixin"
+    "FurnaceMinecartEntityAccessor",
+    "FurnaceMinecartEntityMixin",
+    "PlayerEntityMixin",
+    "StorageMinecartEntityMixin"
   ],
   "injectors": {
     "defaultRequire": 1

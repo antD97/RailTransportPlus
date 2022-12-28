@@ -4,6 +4,7 @@ import com.antd.railtransportplus.LinkResult;
 import com.antd.railtransportplus.RailTransportPlus;
 import com.antd.railtransportplus.mixininterface.LinkableCart;
 import com.antd.railtransportplus.mixininterface.PoweredRailIgnorable;
+import com.antd.railtransportplus.mixininterface.TrainEngineable;
 import net.minecraft.block.AbstractRailBlock;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -12,6 +13,8 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.entity.vehicle.FurnaceMinecartEntity;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.tag.BlockTags;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
@@ -24,6 +27,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.LinkedList;
+import java.util.UUID;
 
 @Mixin(AbstractMinecartEntity.class)
 public abstract class AbstractMinecartEntityMixin extends Entity implements LinkableCart {
@@ -49,11 +53,12 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
     @Inject(at = @At("RETURN"), method = "getMaxSpeed()D", cancellable = true)
     public void getMaxSpeed(CallbackInfoReturnable<Double> cir) {
         final var boostMultiplier = RailTransportPlus.worldConfig.maxBoostedSpeed / 8.0;
+
         if (nextCart != null) cir.setReturnValue(cir.getReturnValue() * boostMultiplier * 2.0);
     }
 
     @Inject(at = @At("RETURN"), method = "tick()V")
-    public void tickReturn(CallbackInfo ci) {
+    public void tick(CallbackInfo ci) {
 
         if (!this.world.isClient()) {
             isTicked = true;
@@ -148,13 +153,32 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
     @Inject(at = @At("HEAD"), method = "moveOnRail(Lnet/minecraft/util/math/BlockPos;" +
             "Lnet/minecraft/block/BlockState;)V")
     public void moveOnRailHead(BlockPos pos, BlockState state, CallbackInfo ci) {
-        if (nextCart != null) ((PoweredRailIgnorable) state).setIgnorePoweredRail(true);
+        if (nextCart != null) ((PoweredRailIgnorable) state).railtransportplus$setIgnorePoweredRail(true);
     }
 
     @Inject(at = @At("RETURN"), method = "moveOnRail(Lnet/minecraft/util/math/BlockPos;" +
             "Lnet/minecraft/block/BlockState;)V")
     public void moveOnRailReturn(BlockPos pos, BlockState state, CallbackInfo ci) {
-        ((PoweredRailIgnorable) state).setIgnorePoweredRail(false);
+        ((PoweredRailIgnorable) state).railtransportplus$setIgnorePoweredRail(false);
+    }
+
+    @Inject(at = @At("RETURN"), method = "writeCustomDataToNbt(Lnet/minecraft/nbt/NbtCompound;)V")
+    public void writeCustomDataToNbt(NbtCompound nbt, CallbackInfo ci) {
+        if (nextCart != null) nbt.putUuid("nextCart", nextCart.getUuid());
+        if (prevCart != null) nbt.putUuid("prevCart", prevCart.getUuid());
+    }
+
+    @Inject(at = @At("RETURN"), method = "readCustomDataFromNbt(Lnet/minecraft/nbt/NbtCompound;)V")
+    public void readCustomDataFromNbt(NbtCompound nbt, CallbackInfo ci) {
+        final var thisCart = (AbstractMinecartEntity) (Object) this;
+        if (nbt.containsUuid("nextCart")) {
+            this.nextCart = (AbstractMinecartEntity) ((ServerWorld) thisCart.world)
+                    .getEntity(nbt.getUuid("nextCart"));
+        }
+        if (nbt.containsUuid("prevCart")) {
+            this.prevCart = (AbstractMinecartEntity) ((ServerWorld) thisCart.world)
+                    .getEntity(nbt.getUuid("prevCart"));
+        }
     }
 
 /* ---------------------------------------- Linkable Cart --------------------------------------- */
@@ -215,6 +239,11 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
         this.train = railtransportplus$createTrain();
         for (var cart : this.train) ((LinkableCart) cart).railtransportplus$setTrain(this.train);
 
+        // update front furnace cart push
+        if (this.train.getFirst() instanceof FurnaceMinecartEntity) {
+            ((TrainEngineable) this.train.getFirst()).railtransportplus$updatePush();
+        }
+
         return LinkResult.SUCCESS;
     }
 
@@ -233,6 +262,11 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
             final var updatedTrain = tempLinkableCart.railtransportplus$createTrain();
             for (var cart : updatedTrain) {
                 ((LinkableCart) cart).railtransportplus$setTrain(updatedTrain);
+            }
+
+            // update front furnace cart push
+            if (updatedTrain.getFirst() instanceof FurnaceMinecartEntity) {
+                ((TrainEngineable) updatedTrain.getFirst()).railtransportplus$updatePush();
             }
 
             // carts per furnace cart check
@@ -261,6 +295,11 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
                 ((LinkableCart) cart).railtransportplus$setTrain(updatedTrain);
             }
 
+            // update front furnace cart push
+            if (updatedTrain.getFirst() instanceof FurnaceMinecartEntity) {
+                ((TrainEngineable) updatedTrain.getFirst()).railtransportplus$updatePush();
+            }
+
             // carts per furnace cart check
             final var furnaceCartCount = updatedTrain.stream()
                     .filter((cart) -> cart instanceof FurnaceMinecartEntity).count();
@@ -276,6 +315,11 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
         // update this train
         this.train = railtransportplus$createTrain();
         for (var cart : this.train) ((LinkableCart) cart).railtransportplus$setTrain(this.train);
+
+        // update front furnace cart push
+        if (this.train.getFirst() instanceof FurnaceMinecartEntity) {
+            ((TrainEngineable) this.train.getFirst()).railtransportplus$updatePush();
+        }
     }
 
     @Override

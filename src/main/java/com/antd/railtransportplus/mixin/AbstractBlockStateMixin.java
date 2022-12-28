@@ -19,7 +19,8 @@ public class AbstractBlockStateMixin implements PoweredRailIgnorable {
     @Inject(at = @At("RETURN"), method = "isOf(Lnet/minecraft/block/Block;)Z", cancellable = true)
     public void isOf(Block block, CallbackInfoReturnable<Boolean> cir) {
         if (ignorePoweredRail
-                && ((AbstractBlock.AbstractBlockState) (Object) this).getBlock() == Blocks.POWERED_RAIL) {
+                && ((AbstractBlock.AbstractBlockState) (Object) this).getBlock()
+                == Blocks.POWERED_RAIL) {
             cir.setReturnValue(false);
         }
     }
@@ -27,7 +28,7 @@ public class AbstractBlockStateMixin implements PoweredRailIgnorable {
 /* ----------------------------------- Powered Rail Ignorable ----------------------------------- */
 
     @Override
-    public void setIgnorePoweredRail(boolean ignorePoweredRail) {
+    public void railtransportplus$setIgnorePoweredRail(boolean ignorePoweredRail) {
         this.ignorePoweredRail = ignorePoweredRail;
     }
 }
