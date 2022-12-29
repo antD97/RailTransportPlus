@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2021 antD97
+ * Licensed under the MIT License https://antD.mit-license.org/
+ */
 package com.antd.railtransportplus.mixin;
 
 import com.antd.railtransportplus.LinkResult;
@@ -15,6 +19,7 @@ import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.entity.vehicle.FurnaceMinecartEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.tag.BlockTags;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
@@ -37,6 +42,9 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
     private LinkedList<AbstractMinecartEntity> train = new LinkedList<>();
 
     private boolean isTicked = false;
+
+    private UUID loadNextCart = null;
+    private UUID loadPrevCart = null;
 
     public AbstractMinecartEntityMixin(EntityType<?> type, World world) {
         super(type, world);
@@ -72,8 +80,12 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
                     if (nextCart != null) {
 
                         final var originalVelocity = cart.getVelocity();
+                        final var distanceToCart = cart.getPos().distanceTo(nextCart.getPos());
 
-                        if (cart.getPos().distanceTo(nextCart.getPos()) > 1.67) {
+                        // too far, unlink
+                        if (distanceToCart > 5) linkableCart.railtransportplus$unlinkCart(nextCart);
+                        // move towards next cart
+                        else if (distanceToCart > 1.67) {
 
                             // calculate cart pull velocity
                             final var vectorToCart = nextCart.getPos().subtract(cart.getPos());
@@ -171,13 +183,31 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
     @Inject(at = @At("RETURN"), method = "readCustomDataFromNbt(Lnet/minecraft/nbt/NbtCompound;)V")
     public void readCustomDataFromNbt(NbtCompound nbt, CallbackInfo ci) {
         final var thisCart = (AbstractMinecartEntity) (Object) this;
+        final var thisLinkableCart = (LinkableCart) this;
+        final var world = (ServerWorld) thisCart.world;
+
         if (nbt.containsUuid("nextCart")) {
-            this.nextCart = (AbstractMinecartEntity) ((ServerWorld) thisCart.world)
-                    .getEntity(nbt.getUuid("nextCart"));
+            final var loadedUuid = nbt.getUuid("nextCart");
+            final var loadedCart = world.getEntity(loadedUuid);
+
+            if (loadedCart != null) { // not sure if this is possible
+                ((LinkableCart) loadedCart).railtransportplus$linkCart(thisCart);
+            } else {
+                // load with entity on load listener
+                loadNextCart = loadedUuid;
+            }
         }
+
         if (nbt.containsUuid("prevCart")) {
-            this.prevCart = (AbstractMinecartEntity) ((ServerWorld) thisCart.world)
-                    .getEntity(nbt.getUuid("prevCart"));
+            final var loadedUuid = nbt.getUuid("prevCart");
+            final var loadedCart = world.getEntity(loadedUuid);
+
+            if (loadedCart != null) { // not sure if this is possible
+                thisLinkableCart.railtransportplus$linkCart((AbstractMinecartEntity) loadedCart);
+            } else {
+                // load with entity on load listener
+                loadPrevCart = loadedUuid;
+            }
         }
     }
 
@@ -248,78 +278,31 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
     }
 
     @Override
-    public void railtransportplus$unlinkCarts() {
+    public void railtransportplus$unlinkCart(AbstractMinecartEntity cart) {
 
-        // unlink next cart
-        if (this.nextCart != null) {
-            final var tempCart = this.nextCart;
-            final var tempLinkableCart = (LinkableCart) tempCart;
-
+        final AbstractMinecartEntity unlinkedCart;
+        if (this.nextCart == cart) {
+            // unlink
+            unlinkedCart = this.nextCart;
             this.nextCart = null;
-            tempLinkableCart.railtransportplus$setPrevCart(null);
+            ((LinkableCart) unlinkedCart).railtransportplus$setPrevCart(null);
 
-            // update the unlinked cart's train
-            final var updatedTrain = tempLinkableCart.railtransportplus$createTrain();
-            for (var cart : updatedTrain) {
-                ((LinkableCart) cart).railtransportplus$setTrain(updatedTrain);
-            }
-
-            // update front furnace cart push
-            if (updatedTrain.getFirst() instanceof FurnaceMinecartEntity) {
-                ((TrainEngineable) updatedTrain.getFirst()).railtransportplus$updatePush();
-            }
-
-            // carts per furnace cart check
-            final var furnaceCartCount = updatedTrain.stream()
-                    .filter((cart) -> cart instanceof FurnaceMinecartEntity).count();
-            final var cartLimit = furnaceCartCount > 0 ?
-                    RailTransportPlus.worldConfig.maxCartsPerFurnaceCart * furnaceCartCount
-                    : RailTransportPlus.worldConfig.maxCartsPerFurnaceCart + 1;
-
-            if (updatedTrain.size() - furnaceCartCount > cartLimit) {
-                for (var cart : updatedTrain) ((LinkableCart) cart).railtransportplus$unlinkCarts();
-            }
+            ((AbstractMinecartEntity) (Object) this)
+                    .playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
         }
-
-        // unlink previous cart
-        if (this.prevCart != null) {
-            final var tempCart = this.prevCart;
-            final var tempLinkableCart = (LinkableCart) tempCart;
-
+        else if (this.prevCart == cart) {
+            // unlink
+            unlinkedCart = this.prevCart;
             this.prevCart = null;
-            tempLinkableCart.railtransportplus$setNextCart(null);
+            ((LinkableCart) unlinkedCart).railtransportplus$setNextCart(null);
 
-            // update the unlinked cart's train
-            final var updatedTrain = tempLinkableCart.railtransportplus$createTrain();
-            for (var cart : updatedTrain) {
-                ((LinkableCart) cart).railtransportplus$setTrain(updatedTrain);
-            }
-
-            // update front furnace cart push
-            if (updatedTrain.getFirst() instanceof FurnaceMinecartEntity) {
-                ((TrainEngineable) updatedTrain.getFirst()).railtransportplus$updatePush();
-            }
-
-            // carts per furnace cart check
-            final var furnaceCartCount = updatedTrain.stream()
-                    .filter((cart) -> cart instanceof FurnaceMinecartEntity).count();
-            final var cartLimit = furnaceCartCount > 0 ?
-                    RailTransportPlus.worldConfig.maxCartsPerFurnaceCart * furnaceCartCount
-                    : RailTransportPlus.worldConfig.maxCartsPerFurnaceCart + 1;
-
-            if (updatedTrain.size() - furnaceCartCount > cartLimit) {
-                for (var cart : updatedTrain) ((LinkableCart) cart).railtransportplus$unlinkCarts();
-            }
+            ((AbstractMinecartEntity) (Object) this)
+                    .playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
         }
+        else return;
 
-        // update this train
-        this.train = railtransportplus$createTrain();
-        for (var cart : this.train) ((LinkableCart) cart).railtransportplus$setTrain(this.train);
-
-        // update front furnace cart push
-        if (this.train.getFirst() instanceof FurnaceMinecartEntity) {
-            ((TrainEngineable) this.train.getFirst()).railtransportplus$updatePush();
-        }
+        railtransportplus$updateCartTrain((AbstractMinecartEntity) (Object) this);
+        railtransportplus$updateCartTrain(unlinkedCart);
     }
 
     @Override
@@ -383,5 +366,59 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
         }
 
         return train;
+    }
+
+    @Override
+    public UUID getLoadNextCart() {
+        return loadNextCart;
+    }
+
+    @Override
+    public void resetLoadNextCart() {
+        loadNextCart = null;
+    }
+
+    @Override
+    public UUID getLoadPrevCart() {
+        return loadPrevCart;
+    }
+
+    @Override
+    public void resetLoadPrevCart() {
+        loadPrevCart = null;
+    }
+
+/* ------------------------------------------- Helpers ------------------------------------------ */
+
+    /**
+     * Rebuilds cart's train,
+     * updates all carts in that train with that train,
+     * updates the push state of the leading furnace cart,
+     * and does a carts per furnace cart check.
+     */
+    private void railtransportplus$updateCartTrain(AbstractMinecartEntity cart) {
+        final var linkableCart = (LinkableCart) cart;
+
+        // update train
+        final var updatedTrain = linkableCart.railtransportplus$createTrain();
+        for (var c : updatedTrain) {
+            ((LinkableCart) c).railtransportplus$setTrain(updatedTrain);
+        }
+
+        // update front furnace cart push
+        if (updatedTrain.getFirst() instanceof FurnaceMinecartEntity) {
+            ((TrainEngineable) updatedTrain.getFirst()).railtransportplus$updatePush();
+        }
+
+        // carts per furnace cart check
+        final var furnaceCartCount = updatedTrain.stream()
+                .filter((c) -> c instanceof FurnaceMinecartEntity).count();
+        final var cartLimit = furnaceCartCount > 0 ?
+                RailTransportPlus.worldConfig.maxCartsPerFurnaceCart * furnaceCartCount
+                : RailTransportPlus.worldConfig.maxFurnaceCartsPerTrain + 1;
+
+        if (updatedTrain.size() - furnaceCartCount > cartLimit) {
+            for (var c : updatedTrain) ((LinkableCart) c).railtransportplus$unlinkBothCarts();
+        }
     }
 }

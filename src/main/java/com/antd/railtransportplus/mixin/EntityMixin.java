@@ -22,7 +22,7 @@ public abstract class EntityMixin {
         if (!thisEntity.world.isClient() && this instanceof final LinkableCart thisCart) {
 
             // unlink carts
-            thisCart.railtransportplus$unlinkCarts();
+            thisCart.railtransportplus$unlinkBothCarts();
         }
     }
 }

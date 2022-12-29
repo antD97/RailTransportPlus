@@ -10,6 +10,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.item.Items;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
@@ -32,6 +33,8 @@ public class UseEntityListener implements UseEntityCallback {
                 && entity instanceof AbstractMinecartEntity
                 && player.getStackInHand(hand).isOf(Items.CHAIN)
                 && player.isSneaking()) {
+
+            player.playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
 
             if (((CartLinker) player).railtransportplus$linkCart((AbstractMinecartEntity) entity)
                     && !player.isCreative()) {

@@ -137,7 +137,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
             }
         }
         // trailing cart
-        else if (nextCart != null) {
+        else {
             thisFurnaceCart.pushX = 0;
             thisFurnaceCart.pushZ = 0;
 

@@ -4,9 +4,11 @@
  */
 package com.antd.railtransportplus;
 
+import com.antd.railtransportplus.listener.ServerEntityLoadListener;
 import com.antd.railtransportplus.listener.ServerWorldLoadListener;
 import com.antd.railtransportplus.listener.UseEntityListener;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import org.slf4j.Logger;
@@ -56,6 +58,7 @@ public class RailTransportPlus implements ModInitializer {
 
 		// register listeners
 		ServerWorldEvents.LOAD.register(new ServerWorldLoadListener());
+		ServerEntityEvents.ENTITY_LOAD.register(new ServerEntityLoadListener());
 		UseEntityCallback.EVENT.register(new UseEntityListener());
 	}
 }
