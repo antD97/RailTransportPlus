@@ -4,6 +4,7 @@
  */
 package com.antd.railtransportplus.mixininterface;
 
+import com.antd.railtransportplus.ClientCartType;
 import com.antd.railtransportplus.LinkResult;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 
@@ -50,11 +51,15 @@ public interface LinkableCart {
     /** Creates an updated train list with all the linked carts. */
     LinkedList<AbstractMinecartEntity> railtransportplus$createTrain();
 
-    UUID getLoadNextCart();
+    UUID railtransportplus$getLoadNextCart();
 
-    void resetLoadNextCart();
+    void railtransportplus$resetLoadNextCart();
 
-    UUID getLoadPrevCart();
+    UUID railtransportplus$getLoadPrevCart();
 
-    void resetLoadPrevCart();
+    void railtransportplus$resetLoadPrevCart();
+
+    ClientCartType railtransportplus$clientGetCartType();
+
+    void railtransportplus$clientSetCartType(ClientCartType type);
 }

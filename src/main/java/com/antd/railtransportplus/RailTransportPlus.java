@@ -4,13 +4,16 @@
  */
 package com.antd.railtransportplus;
 
-import com.antd.railtransportplus.listener.ServerEntityLoadListener;
-import com.antd.railtransportplus.listener.ServerWorldLoadListener;
-import com.antd.railtransportplus.listener.UseEntityListener;
+import com.antd.railtransportplus.listener.*;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,6 +27,13 @@ public class RailTransportPlus implements ModInitializer {
 
 	public static final Logger LOGGER = LoggerFactory.getLogger("RailTransportPlus");
 
+	/**
+	 * server -> client: cart type info
+	 * server <- client: cart type info request
+	 */
+	public static final Identifier CART_TYPE_PACKET_ID =
+			new Identifier("railtransportplus", "cart-type-update");
+
 	public static Config globalConfig = null;
 	public static Config worldConfig = null;
 
@@ -33,7 +43,7 @@ public class RailTransportPlus implements ModInitializer {
 		final var globalConfigFile = new File("config/rail-transport-plus.properties");
 
 		// load global config
-		try (var fr = new FileReader(globalConfigFile)) {
+		try (final var fr = new FileReader(globalConfigFile)) {
 			final var properties = new Properties();
 			properties.load(fr);
 			globalConfig = Config.loadConfig(properties);
@@ -57,8 +67,14 @@ public class RailTransportPlus implements ModInitializer {
 		}
 
 		// register listeners
+		UseEntityCallback.EVENT.register(new UseEntityListener());
 		ServerWorldEvents.LOAD.register(new ServerWorldLoadListener());
 		ServerEntityEvents.ENTITY_LOAD.register(new ServerEntityLoadListener());
-		UseEntityCallback.EVENT.register(new UseEntityListener());
+		ServerPlayNetworking.registerGlobalReceiver(CART_TYPE_PACKET_ID,
+				new RequestCartTypePacketListener());
+
+		ClientPlayNetworking.registerGlobalReceiver(CART_TYPE_PACKET_ID,
+				new CartTypeUpdatePacketListener());
+		ClientEntityEvents.ENTITY_LOAD.register(new ClientEntityLoadListener());
 	}
 }

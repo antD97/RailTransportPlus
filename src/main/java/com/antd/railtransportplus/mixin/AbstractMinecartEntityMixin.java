@@ -4,11 +4,14 @@
  */
 package com.antd.railtransportplus.mixin;
 
+import com.antd.railtransportplus.ClientCartType;
 import com.antd.railtransportplus.LinkResult;
 import com.antd.railtransportplus.RailTransportPlus;
 import com.antd.railtransportplus.mixininterface.LinkableCart;
 import com.antd.railtransportplus.mixininterface.PoweredRailIgnorable;
 import com.antd.railtransportplus.mixininterface.TrainEngineable;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.block.AbstractRailBlock;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -26,6 +29,7 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.gen.Invoker;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -37,6 +41,8 @@ import java.util.UUID;
 @Mixin(AbstractMinecartEntity.class)
 public abstract class AbstractMinecartEntityMixin extends Entity implements LinkableCart {
 
+    private static final int MAX_LINK_DISTANCE = 8;
+
     private AbstractMinecartEntity nextCart = null;
     private AbstractMinecartEntity prevCart = null;
     private LinkedList<AbstractMinecartEntity> train = new LinkedList<>();
@@ -46,13 +52,26 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
     private UUID loadNextCart = null;
     private UUID loadPrevCart = null;
 
+    private ClientCartType clientCartType = ClientCartType.REGULAR;
+
     public AbstractMinecartEntityMixin(EntityType<?> type, World world) {
         super(type, world);
     }
 
+/* -------------------------------------- Invoker/Accessor -------------------------------------- */
+
+    @Invoker("getMaxSpeed")
+    public abstract double invokeGetMaxSpeed();
+
+    @Invoker("moveOffRail")
+    public abstract void invokeMoveOffRail();
+
+    @Invoker("moveOnRail")
+    public abstract void invokeMoveOnRail(BlockPos pos, BlockState state);
+
 /* ------------------------------------------- Inject ------------------------------------------- */
 
-    @Inject(at = @At("TAIL"), method = "<init>(Lnet/minecraft/entity/EntityType;" +
+    @Inject(at = @At("RETURN"), method = "<init>(Lnet/minecraft/entity/EntityType;" +
         "Lnet/minecraft/world/World;)V")
     public void constructor(CallbackInfo ci) {
     train.add((AbstractMinecartEntity) (Object) this);
@@ -76,19 +95,21 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
                 // all trailing carts...
                 for (var cart : train) {
                     final var linkableCart = (LinkableCart) cart;
-                    final var nextCart = linkableCart.railtransportplus$getNextCart();
-                    if (nextCart != null) {
+                    final var next = linkableCart.railtransportplus$getNextCart();
+                    if (next != null) {
 
                         final var originalVelocity = cart.getVelocity();
-                        final var distanceToCart = cart.getPos().distanceTo(nextCart.getPos());
+                        final var distanceToCart = cart.getPos().distanceTo(next.getPos());
 
                         // too far, unlink
-                        if (distanceToCart > 5) linkableCart.railtransportplus$unlinkCart(nextCart);
+                        if (distanceToCart > MAX_LINK_DISTANCE) {
+                            linkableCart.railtransportplus$unlinkCart(next);
+                        }
                         // move towards next cart
                         else if (distanceToCart > 1.67) {
 
                             // calculate cart pull velocity
-                            final var vectorToCart = nextCart.getPos().subtract(cart.getPos());
+                            final var vectorToCart = next.getPos().subtract(cart.getPos());
 
                             // limit how close the cart can move to the target
                             var speedLimit = Math.max(
@@ -101,7 +122,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
                             }
 
                             final var horizontalSpeed = Math.min(
-                                    ((AbstractMinecartEntityInvoker) cart).invokeGetMaxSpeed(),
+                                    ((AbstractMinecartEntityMixin) (Object) cart).invokeGetMaxSpeed(),
                                     speedLimit
                             );
 
@@ -134,10 +155,10 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
                                         railBlock.getDefaultState().with(railBlock.getShapeProperty(),
                                                 blockState.get(block.getShapeProperty()));
 
-                                ((AbstractMinecartEntityInvoker) cart).invokeMoveOnRail(blockPos,
+                                ((AbstractMinecartEntityMixin) (Object) cart).invokeMoveOnRail(blockPos,
                                         railState);
                             } else {
-                                ((AbstractMinecartEntityInvoker) cart).invokeMoveOffRail();
+                                ((AbstractMinecartEntityMixin) (Object) cart).invokeMoveOffRail();
                             }
                         }
 
@@ -222,6 +243,11 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
         // check removed
         if (this.isRemoved() || otherCart.isRemoved()) return LinkResult.CART_REMOVED;
 
+        // check too far
+        if (this.getPos().distanceTo(otherCart.getPos()) > MAX_LINK_DISTANCE) {
+            return LinkResult.TOO_FAR;
+        }
+
         // check already has previous cart
         if (this.prevCart != null) return LinkResult.HAS_PREV_CART;
 
@@ -232,7 +258,9 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
         final var otherCartTrain = ((LinkableCart) otherCart).railtransportplus$getTrain();
 
         // check already linked
-        if (this.train.contains(otherCart) || otherCartTrain.contains(this)) return LinkResult.SAME_TRAIN;
+        if (this.train.contains(otherCart) || otherCartTrain.contains(this)) {
+            return LinkResult.SAME_TRAIN;
+        }
 
         var furnaceCartCount = this.train.stream()
                 .filter((cart) -> cart instanceof FurnaceMinecartEntity).count();
@@ -241,7 +269,9 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
 
         if (otherCart instanceof FurnaceMinecartEntity) {
             // furnace cart at front only check
-            if (!((Object) this instanceof FurnaceMinecartEntity)) return LinkResult.FURNACE_HEAD_ONLY;
+            if (!((Object) this instanceof FurnaceMinecartEntity)) {
+                return LinkResult.FURNACE_HEAD_ONLY;
+            }
             else {
                 // furnace cart count check
                 if (furnaceCartCount > RailTransportPlus.worldConfig.maxFurnaceCartsPerTrain) {
@@ -260,7 +290,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
         }
 
         // link carts
-        this.prevCart = otherCart;
+        railtransportplus$setPrevCart(otherCart);
         ((LinkableCart) otherCart).railtransportplus$setNextCart(
                 (AbstractMinecartEntity) (Object) this
         );
@@ -284,7 +314,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
         if (this.nextCart == cart) {
             // unlink
             unlinkedCart = this.nextCart;
-            this.nextCart = null;
+            railtransportplus$setNextCart(null);
             ((LinkableCart) unlinkedCart).railtransportplus$setPrevCart(null);
 
             ((AbstractMinecartEntity) (Object) this)
@@ -293,7 +323,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
         else if (this.prevCart == cart) {
             // unlink
             unlinkedCart = this.prevCart;
-            this.prevCart = null;
+            railtransportplus$setPrevCart(null);
             ((LinkableCart) unlinkedCart).railtransportplus$setNextCart(null);
 
             ((AbstractMinecartEntity) (Object) this)
@@ -313,6 +343,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
     @Override
     public void railtransportplus$setNextCart(AbstractMinecartEntity nextCart) {
         this.nextCart = nextCart;
+        railtransportplus$updateClientCartType();
     }
 
     @Override
@@ -323,6 +354,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
     @Override
     public void railtransportplus$setPrevCart(AbstractMinecartEntity prevCart) {
         this.prevCart = prevCart;
+        railtransportplus$updateClientCartType();
     }
 
     @Override
@@ -359,33 +391,43 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
         train.add(frontCart);
 
         // add previous carts to train
-        var prevCart = frontCart;
-        while (((LinkableCart) prevCart).railtransportplus$getPrevCart() != null) {
-            prevCart = ((LinkableCart) prevCart).railtransportplus$getPrevCart();
-            train.add(prevCart);
+        var prev = frontCart;
+        while (((LinkableCart) prev).railtransportplus$getPrevCart() != null) {
+            prev = ((LinkableCart) prev).railtransportplus$getPrevCart();
+            train.add(prev);
         }
 
         return train;
     }
 
     @Override
-    public UUID getLoadNextCart() {
+    public UUID railtransportplus$getLoadNextCart() {
         return loadNextCart;
     }
 
     @Override
-    public void resetLoadNextCart() {
+    public void railtransportplus$resetLoadNextCart() {
         loadNextCart = null;
     }
 
     @Override
-    public UUID getLoadPrevCart() {
+    public UUID railtransportplus$getLoadPrevCart() {
         return loadPrevCart;
     }
 
     @Override
-    public void resetLoadPrevCart() {
+    public void railtransportplus$resetLoadPrevCart() {
         loadPrevCart = null;
+    }
+
+    @Override
+    public ClientCartType railtransportplus$clientGetCartType() {
+        return clientCartType;
+    }
+
+    @Override
+    public void railtransportplus$clientSetCartType(ClientCartType type) {
+        this.clientCartType = type;
     }
 
 /* ------------------------------------------- Helpers ------------------------------------------ */
@@ -419,6 +461,52 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements Link
 
         if (updatedTrain.size() - furnaceCartCount > cartLimit) {
             for (var c : updatedTrain) ((LinkableCart) c).railtransportplus$unlinkBothCarts();
+        }
+    }
+
+    private void railtransportplus$updateClientCartType() {
+        final var oldClientCartType = clientCartType;
+
+        // trailing
+        if (nextCart != null) {
+            this.clientCartType = ClientCartType.TRAILING;
+
+            // check boosted
+            final var frontCart = this.train.getFirst();
+            if (frontCart instanceof FurnaceMinecartEntity) {
+                if (((TrainEngineable) frontCart).railtransportplus$isReceivingBoost()) {
+                    this.clientCartType = ClientCartType.TRAILING_BOOST;
+                }
+            }
+        }
+        // front cart
+        else {
+            var isReceivingBoost = false;
+            if ((Object) this instanceof FurnaceMinecartEntity) {
+                if (((TrainEngineable) this).railtransportplus$isReceivingBoost()) {
+                    isReceivingBoost = true;
+                }
+            }
+
+            final var hasTail = this.prevCart != null;
+
+            if (hasTail && isReceivingBoost) this.clientCartType = ClientCartType.FRONT_BOOST;
+            else if (hasTail && !isReceivingBoost) this.clientCartType = ClientCartType.FRONT;
+            else if (!hasTail && isReceivingBoost) {
+                this.clientCartType = ClientCartType.FRONT_TAILLESS_BOOST;
+            } else this.clientCartType = ClientCartType.REGULAR;
+        }
+
+        // send update to clients
+        if (oldClientCartType != this.clientCartType) {
+            for (var player : ((ServerWorld) this.world).getPlayers()) {
+
+                final var buf = PacketByteBufs.create();
+                buf.writeUuid(this.getUuid());
+                buf.writeByte(this.clientCartType.ordinal());
+
+                ServerPlayNetworking.send(player, RailTransportPlus.CART_TYPE_PACKET_ID, buf);
+            }
         }
     }
 }

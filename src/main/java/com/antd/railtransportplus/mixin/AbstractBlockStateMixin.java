@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2021 antD97
+ * Licensed under the MIT License https://antD.mit-license.org/
+ */
 package com.antd.railtransportplus.mixin;
 
 import com.antd.railtransportplus.mixininterface.PoweredRailIgnorable;
@@ -10,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(targets = "net.minecraft.block.AbstractBlock$AbstractBlockState")
-public class AbstractBlockStateMixin implements PoweredRailIgnorable {
+public abstract class AbstractBlockStateMixin implements PoweredRailIgnorable {
 
     private boolean ignorePoweredRail = false;
 

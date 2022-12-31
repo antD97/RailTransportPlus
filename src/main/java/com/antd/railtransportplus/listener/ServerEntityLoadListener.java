@@ -4,7 +4,6 @@
  */
 package com.antd.railtransportplus.listener;
 
-import com.antd.railtransportplus.RailTransportPlus;
 import com.antd.railtransportplus.mixininterface.LinkableCart;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.minecraft.entity.Entity;
@@ -20,16 +19,16 @@ public class ServerEntityLoadListener implements ServerEntityEvents.Load {
             final var linkableCart = (LinkableCart) entity;
 
             // link next cart
-            if (linkableCart.getLoadNextCart() != null) {
-                final var loadedCart = world.getEntity(linkableCart.getLoadNextCart());
+            if (linkableCart.railtransportplus$getLoadNextCart() != null) {
+                final var loadedCart = world.getEntity(linkableCart.railtransportplus$getLoadNextCart());
                 if (loadedCart != null) {
                     ((LinkableCart) loadedCart).railtransportplus$linkCart(cart);
                 }
             }
 
             // link previous cart
-            if (linkableCart.getLoadPrevCart() != null) {
-                final var loadedCart = world.getEntity(linkableCart.getLoadPrevCart());
+            if (linkableCart.railtransportplus$getLoadPrevCart() != null) {
+                final var loadedCart = world.getEntity(linkableCart.railtransportplus$getLoadPrevCart());
                 if (loadedCart != null) {
                     linkableCart.railtransportplus$linkCart((AbstractMinecartEntity) loadedCart);
                 }

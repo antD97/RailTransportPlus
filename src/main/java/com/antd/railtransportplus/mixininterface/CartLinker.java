@@ -4,7 +4,12 @@
  */
 package com.antd.railtransportplus.mixininterface;
 
+import com.antd.railtransportplus.ClientCartType;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
+import net.minecraft.util.Pair;
+
+import java.util.List;
+import java.util.UUID;
 
 /** All methods expected to be called on the server thread. */
 public interface CartLinker {

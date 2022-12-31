@@ -1,8 +1,13 @@
+/*
+ * Copyright © 2021 antD97
+ * Licensed under the MIT License https://antD.mit-license.org/
+ */
 package com.antd.railtransportplus;
 
 public enum LinkResult {
     SAME_CART("Link failed: same cart"),
     CART_REMOVED("Link failed: cart missing"),
+    TOO_FAR("Link failed: cart too far"),
     HAS_PREV_CART("Link failed: cart is already linked"),
     LINKED_CART_NOT_FRONT("Link failed: linked cart must be the front of its train"),
     SAME_TRAIN("Link failed: cart already connected to train"),

@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2021 antD97
+ * Licensed under the MIT License https://antD.mit-license.org/
+ */
 package com.antd.railtransportplus.mixin;
 
 import net.minecraft.entity.player.PlayerEntity;
@@ -11,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(StorageMinecartEntity.class)
-public class StorageMinecartEntityMixin {
+public abstract class StorageMinecartEntityMixin {
 
     @Inject(at = @At("HEAD"), method = "interact(Lnet/minecraft/entity/player/PlayerEntity;" +
             "Lnet/minecraft/util/Hand;)Lnet/minecraft/util/ActionResult;", cancellable = true)
