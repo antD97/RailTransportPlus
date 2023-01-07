@@ -4,7 +4,7 @@
  */
 package com.antd.railtransportplus;
 
-public enum ClientCartType {
+public enum CartVisualState {
     REGULAR,
     TRAILING,
     TRAILING_BOOST,

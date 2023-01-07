@@ -21,6 +21,9 @@
   "entrypoints": {
     "main": [
       "com.antd.railtransportplus.RailTransportPlus"
+    ],
+    "client": [
+      "com.antd.railtransportplus.RailTransportPlusClient"
     ]
   },
   "mixins": [

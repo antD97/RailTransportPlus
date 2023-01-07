@@ -4,9 +4,8 @@
  */
 package com.antd.railtransportplus.mixin;
 
-import com.antd.railtransportplus.RailTransportPlus;
-import com.antd.railtransportplus.mixininterface.LinkableCart;
-import com.antd.railtransportplus.mixininterface.TrainEngineable;
+import com.antd.railtransportplus.interfaceinject.RtpAbstractMinecartEntity;
+import com.antd.railtransportplus.interfaceinject.RtpFurnaceMinecartEntity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
@@ -26,9 +25,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import static com.antd.railtransportplus.RailTransportPlus.worldConfig;
+
 @Mixin(FurnaceMinecartEntity.class)
 public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
-        implements TrainEngineable {
+        implements RtpFurnaceMinecartEntity {
 
     @Shadow @Final private static Ingredient ACCEPTABLE_FUEL;
     @Shadow protected abstract void setLit(boolean lit);
@@ -40,7 +41,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
         super(entityType, world);
     }
 
-/* -------------------------------------- Invoker/Accessor -------------------------------------- */
+/* ------------------------------------------------ Invoker/Accessor ------------------------------------------------ */
 
     @Accessor("fuel")
     public abstract int getFuel();
@@ -48,7 +49,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
     @Accessor("fuel")
     public abstract void setFuel(int fuel);
 
-/* ------------------------------------------- Inject ------------------------------------------- */
+/* ----------------------------------------------------- Inject ----------------------------------------------------- */
 
     @Inject(at = @At("RETURN"), method = "tick()V")
     public void tick(CallbackInfo ci) {
@@ -57,15 +58,15 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
 
             // try refueling from chest cart
             if (this.getFuel() <= 0) {
-                final var thisLinkableCart = (LinkableCart) this;
+                final var thisRtpCart = (RtpAbstractMinecartEntity) this;
 
                 // find chest cart immediately after furnace carts
-                final var firstChestCart = thisLinkableCart.railtransportplus$getTrain().stream()
+                final var firstChestCart = thisRtpCart.railtransportplus$getTrain().stream()
                         .filter((c) -> c instanceof StorageMinecartEntity)
                         .findFirst();
 
                 if (firstChestCart.isPresent()
-                        && ((LinkableCart) firstChestCart.get())
+                        && ((RtpAbstractMinecartEntity) firstChestCart.get())
                         .railtransportplus$getNextCart() instanceof FurnaceMinecartEntity) {
 
                     // find first acceptable fuel
@@ -100,9 +101,9 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
     public void getMaxSpeed(CallbackInfoReturnable<Double> cir) {
         final var defaultMaxSpeed = cir.getReturnValue();
         // mpt (meters per tick)
-        final var boostMpt = RailTransportPlus.worldConfig.maxBoostedSpeed / 20.0;
+        final var boostMpt = worldConfig.maxBoostedSpeed / 20.0;
 
-        if (((LinkableCart) this).railtransportplus$getNextCart() != null)
+        if (((RtpAbstractMinecartEntity) this).railtransportplus$getNextCart() != null)
             cir.setReturnValue(boostMpt * 2.0);
         else  {
             cir.setReturnValue(defaultMaxSpeed + (boostMpt - defaultMaxSpeed) * boostAmount);
@@ -119,14 +120,14 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
         if (this.getFuel() > 0) railtransportplus$updatePush();
     }
 
-/* -------------------------------------- Train Engineable -------------------------------------- */
+/* ----------------------------------------------- Interface Injection ---------------------------------------------- */
 
     @Override
     public void railtransportplus$updatePush() {
-        final var thisLinkableCart = (LinkableCart) this;
+        final var thisRtpCart = (RtpAbstractMinecartEntity) this;
         final var thisFurnaceCart = (FurnaceMinecartEntity) (Object) this;
-        final var nextCart = thisLinkableCart.railtransportplus$getNextCart();
-        final var prevCart = thisLinkableCart.railtransportplus$getPrevCart();
+        final var nextCart = thisRtpCart.railtransportplus$getNextCart();
+        final var prevCart = thisRtpCart.railtransportplus$getPrevCart();
 
         // front cart
         if (nextCart == null) {
@@ -135,7 +136,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
             if (prevCart != null) {
 
                 // all carts fueled
-                if (((LinkableCart) this).railtransportplus$getTrain().stream()
+                if (((RtpAbstractMinecartEntity) this).railtransportplus$getTrain().stream()
                         .filter((c) -> c instanceof FurnaceMinecartEntity)
                         .allMatch((c) -> ((FurnaceMinecartEntityMixin) c).getFuel() > 0)) {
                     thisFurnaceCart.pushX = this.getX() - prevCart.getX();
@@ -157,7 +158,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
             thisFurnaceCart.pushZ = 0;
 
             // update push of front furnace minecart
-            ((TrainEngineable) thisLinkableCart.railtransportplus$getTrain().getFirst())
+            ((RtpFurnaceMinecartEntity) thisRtpCart.railtransportplus$getTrain().getFirst())
                     .railtransportplus$updatePush();
         }
     }

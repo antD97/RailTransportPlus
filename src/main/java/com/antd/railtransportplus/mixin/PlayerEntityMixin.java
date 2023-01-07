@@ -5,8 +5,8 @@
 package com.antd.railtransportplus.mixin;
 
 import com.antd.railtransportplus.LinkResult;
-import com.antd.railtransportplus.mixininterface.CartLinker;
-import com.antd.railtransportplus.mixininterface.LinkableCart;
+import com.antd.railtransportplus.interfaceinject.RtpPlayerEntity;
+import com.antd.railtransportplus.interfaceinject.RtpAbstractMinecartEntity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -22,7 +22,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(PlayerEntity.class)
-public abstract class PlayerEntityMixin extends LivingEntity implements CartLinker {
+public abstract class PlayerEntityMixin extends LivingEntity implements RtpPlayerEntity {
 
     private AbstractMinecartEntity linkingCart = null;
 
@@ -30,7 +30,7 @@ public abstract class PlayerEntityMixin extends LivingEntity implements CartLink
         super(entityType, world);
     }
 
-/* ------------------------------------------- Inject ------------------------------------------- */
+/* ----------------------------------------------------- Inject ----------------------------------------------------- */
 
     @Inject(at = @At("HEAD"), method = "tick()V")
     public void tick(CallbackInfo ci) {
@@ -51,7 +51,7 @@ public abstract class PlayerEntityMixin extends LivingEntity implements CartLink
         }
     }
 
-/* ----------------------------------------- Cart Linker ---------------------------------------- */
+/* ----------------------------------------------- Interface Injection ---------------------------------------------- */
 
     @Override
     public boolean railtransportplus$linkCart(AbstractMinecartEntity cart) {
@@ -61,7 +61,7 @@ public abstract class PlayerEntityMixin extends LivingEntity implements CartLink
 
         if (linkingCart == null) linkingCart = cart;
         else {
-            final var result = ((LinkableCart) linkingCart).railtransportplus$linkCart(cart);
+            final var result = ((RtpAbstractMinecartEntity) linkingCart).railtransportplus$linkCart(cart);
             linkingCart = null;
             thisPlayer.sendMessage(Text.of(result.message), true);
             if (result == LinkResult.SUCCESS) linked = true;

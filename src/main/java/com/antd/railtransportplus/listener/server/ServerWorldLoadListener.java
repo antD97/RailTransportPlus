@@ -2,10 +2,9 @@
  * Copyright © 2021 antD97
  * Licensed under the MIT License https://antD.mit-license.org/
  */
-package com.antd.railtransportplus.listener;
+package com.antd.railtransportplus.listener.server;
 
 import com.antd.railtransportplus.Config;
-import com.antd.railtransportplus.RailTransportPlus;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
@@ -15,6 +14,8 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Properties;
+
+import static com.antd.railtransportplus.RailTransportPlus.*;
 
 public class ServerWorldLoadListener implements ServerWorldEvents.Load {
 
@@ -32,18 +33,19 @@ public class ServerWorldLoadListener implements ServerWorldEvents.Load {
         try (var fr = new FileReader(worldConfigFile)) {
             final var properties = new Properties();
             properties.load(fr);
-            RailTransportPlus.worldConfig = Config.loadConfig(properties);
+            worldConfig = Config.loadConfig(properties);
         } catch (IOException ignored) {
         }
 
         // copy global config
-        if (RailTransportPlus.worldConfig == null) {
+        if (worldConfig == null) {
             try (var fw = new FileWriter(worldConfigFile)) {
-                RailTransportPlus.globalConfig.createProperties()
+                globalConfig.createProperties()
                         .store(fw, "Copied from global config on:");
-                RailTransportPlus.LOGGER.info("Copied global config to world.");
+                worldConfig = globalConfig;
+                LOGGER.info("Copied global config to world.");
             } catch (IOException e) {
-                RailTransportPlus.LOGGER.error("Failed to write world properties file.", e);
+                LOGGER.error("Failed to write world properties file.", e);
             }
         }
     }

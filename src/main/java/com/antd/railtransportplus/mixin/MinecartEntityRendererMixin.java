@@ -4,8 +4,8 @@
  */
 package com.antd.railtransportplus.mixin;
 
-import com.antd.railtransportplus.ClientCartType;
-import com.antd.railtransportplus.mixininterface.LinkableCart;
+import com.antd.railtransportplus.CartVisualState;
+import com.antd.railtransportplus.interfaceinject.RtpAbstractMinecartEntity;
 import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
@@ -43,7 +43,7 @@ public abstract class MinecartEntityRendererMixin<T extends AbstractMinecartEnti
 
     private EntityModel<T> model2;
 
-/* ------------------------------------------- Inject ------------------------------------------- */
+/* ----------------------------------------------------- Inject ----------------------------------------------------- */
 
     @Inject(at = @At("RETURN"), method = "<init>")
     public void constructor(EntityRendererFactory.Context ctx, EntityModelLayer layer, CallbackInfo ci) {
@@ -64,9 +64,9 @@ public abstract class MinecartEntityRendererMixin<T extends AbstractMinecartEnti
                        VertexConsumerProvider vertexConsumerProvider, int i, CallbackInfo ci) {
 
         final var cartType =
-                ((LinkableCart) abstractMinecartEntity).railtransportplus$clientGetCartType();
+                ((RtpAbstractMinecartEntity) abstractMinecartEntity).railtransportplus$getCartVisualState();
 
-        if (cartType != ClientCartType.REGULAR) {
+        if (cartType != CartVisualState.REGULAR) {
 
             matrixStack.scale(1.01F, 1.01F, 1.01F);
             VertexConsumer vertexConsumer = null;

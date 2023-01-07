@@ -4,7 +4,7 @@
  */
 package com.antd.railtransportplus.mixin;
 
-import com.antd.railtransportplus.mixininterface.LinkableCart;
+import com.antd.railtransportplus.interfaceinject.RtpAbstractMinecartEntity;
 import net.minecraft.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -19,7 +19,7 @@ public abstract class EntityMixin {
     public void remove(Entity.RemovalReason reason, CallbackInfo ci) {
         final var thisEntity = (Entity) (Object) this;
 
-        if (!thisEntity.world.isClient() && this instanceof final LinkableCart thisCart) {
+        if (!thisEntity.world.isClient() && this instanceof final RtpAbstractMinecartEntity thisCart) {
 
             // unlink carts
             thisCart.railtransportplus$unlinkBothCarts();

@@ -4,14 +4,14 @@
  */
 package com.antd.railtransportplus;
 
-import com.antd.railtransportplus.listener.*;
+import com.antd.railtransportplus.listener.server.RequestCartTypePacketListener;
+import com.antd.railtransportplus.listener.server.ServerEntityLoadListener;
+import com.antd.railtransportplus.listener.server.ServerWorldLoadListener;
+import com.antd.railtransportplus.listener.server.UseEntityListener;
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
@@ -23,16 +23,17 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Properties;
 
+/** Main entrypoint. */
 public class RailTransportPlus implements ModInitializer {
 
 	public static final Logger LOGGER = LoggerFactory.getLogger("RailTransportPlus");
 
 	/**
-	 * server -> client: cart type info
-	 * server <- client: cart type info request
+	 * server -> client: cart visual state update
+	 * server <- client: cart visual state request
 	 */
-	public static final Identifier CART_TYPE_PACKET_ID =
-			new Identifier("railtransportplus", "cart-type-update");
+	public static final Identifier CART_VISUAL_STATE_PACKET_ID =
+			new Identifier("railtransportplus", "cart-visual-state");
 
 	public static Config globalConfig = null;
 	public static Config worldConfig = null;
@@ -56,13 +57,13 @@ public class RailTransportPlus implements ModInitializer {
 
 			try (var fw = new FileWriter(globalConfigFile)) {
 
-				RailTransportPlus.globalConfig.createProperties()
+				globalConfig.createProperties()
 						.store(fw, "Default global config generated on:");
 
 				LOGGER.info("Generated default global config.");
 
 			} catch (IOException e) {
-				RailTransportPlus.LOGGER.error("Failed to write global properties file.", e);
+				LOGGER.error("Failed to write global properties file.", e);
 			}
 		}
 
@@ -70,11 +71,6 @@ public class RailTransportPlus implements ModInitializer {
 		UseEntityCallback.EVENT.register(new UseEntityListener());
 		ServerWorldEvents.LOAD.register(new ServerWorldLoadListener());
 		ServerEntityEvents.ENTITY_LOAD.register(new ServerEntityLoadListener());
-		ServerPlayNetworking.registerGlobalReceiver(CART_TYPE_PACKET_ID,
-				new RequestCartTypePacketListener());
-
-		ClientPlayNetworking.registerGlobalReceiver(CART_TYPE_PACKET_ID,
-				new CartTypeUpdatePacketListener());
-		ClientEntityEvents.ENTITY_LOAD.register(new ClientEntityLoadListener());
+		ServerPlayNetworking.registerGlobalReceiver(CART_VISUAL_STATE_PACKET_ID, new RequestCartTypePacketListener());
 	}
 }

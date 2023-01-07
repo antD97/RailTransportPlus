@@ -2,10 +2,13 @@
  * Copyright © 2021 antD97
  * Licensed under the MIT License https://antD.mit-license.org/
  */
-package com.antd.railtransportplus.mixininterface;
+package com.antd.railtransportplus.interfaceinject;
 
-public interface TrainEngineable {
+public interface RtpFurnaceMinecartEntity {
 
+    /**
+     * Updates pushX & pushZ values according to cart links.
+     */
     void railtransportplus$updatePush();
 
     boolean railtransportplus$isReceivingBoost();
