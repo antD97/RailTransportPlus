@@ -11,5 +11,7 @@ public interface RtpFurnaceMinecartEntity {
      */
     void railtransportplus$updatePush();
 
-    boolean railtransportplus$isReceivingBoost();
+    double railtransportplus$getBoostAmount();
+
+    void railtransportplus$setBoostAmount(double boostAmount);
 }

@@ -33,7 +33,7 @@ public class RequestCartTypePacketListener implements ServerPlayNetworking.PlayC
 
         final var resBuf = PacketByteBufs.create();
         resBuf.writeUuid(cart.getUuid());
-        resBuf.writeByte(rtpCart.railtransportplus$getCartVisualState().ordinal());
+        resBuf.writeByte(rtpCart.railtransportplus$getVisualState().ordinal());
 
         responseSender.sendPacket(CART_VISUAL_STATE_PACKET_ID, resBuf);
     }

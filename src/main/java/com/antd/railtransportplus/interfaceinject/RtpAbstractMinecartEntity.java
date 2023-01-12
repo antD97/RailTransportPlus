@@ -86,7 +86,14 @@ public interface RtpAbstractMinecartEntity {
      */
     void railtransportplus$resetOnLoadPrevCart();
 
-    CartVisualState railtransportplus$getCartVisualState();
+    CartVisualState railtransportplus$getVisualState();
 
     void railtransportplus$setCartVisualState(CartVisualState type);
+
+    /**
+     * Updates this cart's visual state and sends updates to clients if the state changed.
+     */
+    void railtransportplus$updateVisualState();
+
+    boolean railtransportplus$getIgnorePassenger();
 }

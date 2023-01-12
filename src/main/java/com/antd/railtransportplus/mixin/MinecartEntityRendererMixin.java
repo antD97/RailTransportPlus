@@ -64,7 +64,7 @@ public abstract class MinecartEntityRendererMixin<T extends AbstractMinecartEnti
                        VertexConsumerProvider vertexConsumerProvider, int i, CallbackInfo ci) {
 
         final var cartType =
-                ((RtpAbstractMinecartEntity) abstractMinecartEntity).railtransportplus$getCartVisualState();
+                ((RtpAbstractMinecartEntity) abstractMinecartEntity).railtransportplus$getVisualState();
 
         if (cartType != CartVisualState.REGULAR) {
 

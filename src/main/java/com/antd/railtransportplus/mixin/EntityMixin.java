@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 
 @Mixin(Entity.class)
@@ -23,6 +24,15 @@ public abstract class EntityMixin {
 
             // unlink carts
             thisCart.railtransportplus$unlinkBothCarts();
+        }
+    }
+
+    @Inject(at = @At("HEAD"), method = "hasPassengers()Z", cancellable = true)
+    public void hasPassengers(CallbackInfoReturnable<Boolean> cir) {
+        if (this instanceof final RtpAbstractMinecartEntity thisRtpCart) {
+            if (thisRtpCart.railtransportplus$getIgnorePassenger()) {
+                cir.setReturnValue(false);
+            }
         }
     }
 }

@@ -52,7 +52,9 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
 
     private UUID onLoadNextCart = null;
 
-    private CartVisualState cartVisualState = CartVisualState.REGULAR;
+    private CartVisualState visualState = CartVisualState.REGULAR;
+
+    private boolean ignorePassenger = false;
 
     public AbstractMinecartEntityMixin(EntityType<?> type, World world) {
         super(type, world);
@@ -112,10 +114,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
                             final var vectorToCart = next.getPos().subtract(cart.getPos());
 
                             // limit how close the cart can move to the target
-                            var speedLimit = Math.max(
-                                    vectorToCart.horizontalLength() - 1.67,
-                                    0
-                            );
+                            var speedLimit = Math.max(vectorToCart.horizontalLength() - 1.67, 0);
                             // diagonal speed limit
                             if (vectorToCart.x != 0 && vectorToCart.z != 0) {
                                 speedLimit = Math.sqrt((speedLimit * speedLimit) / 2); // pythagoras
@@ -151,12 +150,10 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
 
                                 final var railBlock = (RailBlock) Blocks.RAIL;
 
-                                final var railState =
-                                        railBlock.getDefaultState().with(railBlock.getShapeProperty(),
-                                                blockState.get(block.getShapeProperty()));
+                                final var railState = railBlock.getDefaultState()
+                                        .with(railBlock.getShapeProperty(), blockState.get(block.getShapeProperty()));
 
-                                ((AbstractMinecartEntityMixin) (Object) cart).invokeMoveOnRail(blockPos,
-                                        railState);
+                                ((AbstractMinecartEntityMixin) (Object) cart).invokeMoveOnRail(blockPos, railState);
                             } else {
                                 ((AbstractMinecartEntityMixin) (Object) cart).invokeMoveOffRail();
                             }
@@ -186,19 +183,45 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
     @Inject(at = @At("HEAD"), method = "moveOnRail(Lnet/minecraft/util/math/BlockPos;" +
             "Lnet/minecraft/block/BlockState;)V")
     public void moveOnRailHead(BlockPos pos, BlockState state, CallbackInfo ci) {
-        if (nextCart != null) ((RtpAbstractBlockState) state).railtransportplus$setIgnorePoweredRail(true);
+        if (nextCart != null) {
+            ((RtpAbstractBlockState) state).railtransportplus$setIgnorePoweredRail(true);
+            ignorePassenger = true;
+        }
     }
 
     @Inject(at = @At("RETURN"), method = "moveOnRail(Lnet/minecraft/util/math/BlockPos;" +
             "Lnet/minecraft/block/BlockState;)V")
     public void moveOnRailReturn(BlockPos pos, BlockState state, CallbackInfo ci) {
         ((RtpAbstractBlockState) state).railtransportplus$setIgnorePoweredRail(false);
+        ignorePassenger = false;
+    }
+
+    @Inject(at = @At("HEAD"), method = "moveOffRail()V")
+    public void moveOffRail(CallbackInfo ci) {
+        if ((Object) this instanceof FurnaceMinecartEntity) {
+            final var thisRtpFurnaceCart = (RtpFurnaceMinecartEntity) this;
+            thisRtpFurnaceCart.railtransportplus$setBoostAmount(
+                    Math.max(thisRtpFurnaceCart.railtransportplus$getBoostAmount() - 0.025, 0) // 1.0 -> 0.0 in 2s
+            );
+
+            // update train visual states
+            final var thisRtpCart = (RtpAbstractMinecartEntity) this;
+
+            final var oldVisualState = thisRtpCart.railtransportplus$getVisualState();
+            thisRtpCart.railtransportplus$updateVisualState();
+
+            // if visual state changed, update the entire train
+            if (oldVisualState != thisRtpCart.railtransportplus$getVisualState()) {
+                for (final var cart : ((RtpAbstractMinecartEntity) this).railtransportplus$getTrain()) {
+                    ((RtpAbstractMinecartEntity) cart).railtransportplus$updateVisualState();
+                }
+            }
+        }
     }
 
     @Inject(at = @At("RETURN"), method = "writeCustomDataToNbt(Lnet/minecraft/nbt/NbtCompound;)V")
     public void writeCustomDataToNbt(NbtCompound nbt, CallbackInfo ci) {
         if (nextCart != null) nbt.putUuid("nextCart", nextCart.getUuid());
-        if (prevCart != null) nbt.putUuid("prevCart", prevCart.getUuid());
     }
 
     @Inject(at = @At("RETURN"), method = "readCustomDataFromNbt(Lnet/minecraft/nbt/NbtCompound;)V")
@@ -330,7 +353,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
     @Override
     public void railtransportplus$setNextCart(AbstractMinecartEntity nextCart) {
         this.nextCart = nextCart;
-        railtransportplus$updateClientCartType();
+        railtransportplus$updateVisualState();
     }
 
     @Override
@@ -341,7 +364,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
     @Override
     public void railtransportplus$setPrevCart(AbstractMinecartEntity prevCart) {
         this.prevCart = prevCart;
-        railtransportplus$updateClientCartType();
+        railtransportplus$updateVisualState();
     }
 
     @Override
@@ -398,13 +421,65 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
     }
 
     @Override
-    public CartVisualState railtransportplus$getCartVisualState() {
-        return cartVisualState;
+    public CartVisualState railtransportplus$getVisualState() {
+        return visualState;
     }
 
     @Override
-    public void railtransportplus$setCartVisualState(CartVisualState type) {
-        this.cartVisualState = type;
+    public void railtransportplus$setCartVisualState(CartVisualState visualState) {
+        this.visualState = visualState;
+    }
+
+    @Override
+    public void railtransportplus$updateVisualState() {
+        final var oldVisualState = visualState;
+
+        // trailing
+        if (nextCart != null) {
+            this.visualState = CartVisualState.TRAILING;
+
+            // check boosted
+            final var frontCart = this.train.getFirst();
+            if (frontCart instanceof FurnaceMinecartEntity) {
+                if (((RtpFurnaceMinecartEntity) frontCart).railtransportplus$getBoostAmount() > 0) {
+                    this.visualState = CartVisualState.TRAILING_BOOST;
+                }
+            }
+        }
+        // front cart
+        else {
+            var isBoosted = false;
+            if ((Object) this instanceof FurnaceMinecartEntity) {
+                if (((RtpFurnaceMinecartEntity) this).railtransportplus$getBoostAmount() > 0) {
+                    isBoosted = true;
+                }
+            }
+
+            final var hasTail = this.prevCart != null;
+
+            if (hasTail && isBoosted) this.visualState = CartVisualState.FRONT_BOOST;
+            else if (hasTail && !isBoosted) this.visualState = CartVisualState.FRONT;
+            else if (!hasTail && isBoosted) {
+                this.visualState = CartVisualState.FRONT_TAILLESS_BOOST;
+            } else this.visualState = CartVisualState.REGULAR;
+        }
+
+        // send update to clients
+        if (oldVisualState != this.visualState) {
+            for (var player : ((ServerWorld) this.world).getPlayers()) {
+
+                final var buf = PacketByteBufs.create();
+                buf.writeUuid(this.getUuid());
+                buf.writeByte(this.visualState.ordinal());
+
+                ServerPlayNetworking.send(player, CART_VISUAL_STATE_PACKET_ID, buf);
+            }
+        }
+    }
+
+    @Override
+    public boolean railtransportplus$getIgnorePassenger() {
+        return ignorePassenger;
     }
 
 /* ----------------------------------------------------- Helpers ---------------------------------------------------- */
@@ -438,52 +513,6 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
 
         if (updatedTrain.size() - furnaceCartCount > cartLimit) {
             for (var c : updatedTrain) ((RtpAbstractMinecartEntity) c).railtransportplus$unlinkBothCarts();
-        }
-    }
-
-    private void railtransportplus$updateClientCartType() {
-        final var oldClientCartType = cartVisualState;
-
-        // trailing
-        if (nextCart != null) {
-            this.cartVisualState = CartVisualState.TRAILING;
-
-            // check boosted
-            final var frontCart = this.train.getFirst();
-            if (frontCart instanceof FurnaceMinecartEntity) {
-                if (((RtpFurnaceMinecartEntity) frontCart).railtransportplus$isReceivingBoost()) {
-                    this.cartVisualState = CartVisualState.TRAILING_BOOST;
-                }
-            }
-        }
-        // front cart
-        else {
-            var isReceivingBoost = false;
-            if ((Object) this instanceof FurnaceMinecartEntity) {
-                if (((RtpFurnaceMinecartEntity) this).railtransportplus$isReceivingBoost()) {
-                    isReceivingBoost = true;
-                }
-            }
-
-            final var hasTail = this.prevCart != null;
-
-            if (hasTail && isReceivingBoost) this.cartVisualState = CartVisualState.FRONT_BOOST;
-            else if (hasTail && !isReceivingBoost) this.cartVisualState = CartVisualState.FRONT;
-            else if (!hasTail && isReceivingBoost) {
-                this.cartVisualState = CartVisualState.FRONT_TAILLESS_BOOST;
-            } else this.cartVisualState = CartVisualState.REGULAR;
-        }
-
-        // send update to clients
-        if (oldClientCartType != this.cartVisualState) {
-            for (var player : ((ServerWorld) this.world).getPlayers()) {
-
-                final var buf = PacketByteBufs.create();
-                buf.writeUuid(this.getUuid());
-                buf.writeByte(this.cartVisualState.ordinal());
-
-                ServerPlayNetworking.send(player, CART_VISUAL_STATE_PACKET_ID, buf);
-            }
         }
     }
 }

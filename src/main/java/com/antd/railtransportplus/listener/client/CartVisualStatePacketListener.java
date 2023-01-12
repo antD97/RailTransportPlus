@@ -29,7 +29,7 @@ public class CartVisualStatePacketListener implements ClientPlayNetworking.PlayC
                     .get(cartUuid);
 
             if (cart != null) cart.railtransportplus$setCartVisualState(cartType);
-            else LOGGER.warn("Could no}t find cart.");
+            else LOGGER.warn("Could not find cart.");
         }
     }
 }

@@ -4,8 +4,12 @@
  */
 package com.antd.railtransportplus.mixin;
 
+import com.antd.railtransportplus.RailTransportPlus;
 import com.antd.railtransportplus.interfaceinject.RtpAbstractMinecartEntity;
 import com.antd.railtransportplus.interfaceinject.RtpFurnaceMinecartEntity;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.PoweredRailBlock;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
@@ -15,11 +19,11 @@ import net.minecraft.entity.vehicle.StorageMinecartEntity;
 import net.minecraft.recipe.Ingredient;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -34,20 +38,12 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
     @Shadow @Final private static Ingredient ACCEPTABLE_FUEL;
     @Shadow protected abstract void setLit(boolean lit);
 
+    @Shadow private int fuel;
     private double boostAmount = 0.0;
-    private boolean isReceivingBoost = false;
 
     protected FurnaceMinecartEntityMixin(EntityType<?> entityType, World world) {
         super(entityType, world);
     }
-
-/* ------------------------------------------------ Invoker/Accessor ------------------------------------------------ */
-
-    @Accessor("fuel")
-    public abstract int getFuel();
-
-    @Accessor("fuel")
-    public abstract void setFuel(int fuel);
 
 /* ----------------------------------------------------- Inject ----------------------------------------------------- */
 
@@ -57,7 +53,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
         if (!this.world.isClient()) {
 
             // try refueling from chest cart
-            if (this.getFuel() <= 0) {
+            if (this.fuel <= 0) {
                 final var thisRtpCart = (RtpAbstractMinecartEntity) this;
 
                 // find chest cart immediately after furnace carts
@@ -80,7 +76,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
 
                         // refuel
                         firstFuelStack.get().decrement(1);
-                        this.setFuel(this.getFuel() + 3600);
+                        this.fuel = this.fuel + 3600;
 
                         railtransportplus$updatePush();
 
@@ -89,7 +85,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
                 }
 
                 // haven't refueled
-                if (this.getFuel() <= 0) {
+                if (this.fuel <= 0) {
                     // update push to stop the train
                     railtransportplus$updatePush();
                 }
@@ -105,19 +101,62 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
 
         if (((RtpAbstractMinecartEntity) this).railtransportplus$getNextCart() != null)
             cir.setReturnValue(boostMpt * 2.0);
-        else  {
+        else {
             cir.setReturnValue(defaultMaxSpeed + (boostMpt - defaultMaxSpeed) * boostAmount);
+        }
+    }
+
+    @Inject(at = @At("HEAD"), method = "moveOnRail(Lnet/minecraft/util/math/BlockPos;" +
+            "Lnet/minecraft/block/BlockState;)V")
+    public void moveOnRail(BlockPos pos, BlockState state, CallbackInfo ci) {
+        final var thisRtpCart = (RtpAbstractMinecartEntity) this;
+
+        if (thisRtpCart.railtransportplus$getNextCart() == null) {
+
+            if (this.fuel > 0) {
+                // standard rail
+                if (state.isOf(Blocks.RAIL)) {
+                    this.boostAmount -= 0.01; // 1.0 -> 0.0 in 5s
+                    this.boostAmount = Math.max(this.boostAmount, 0);
+                } else if (state.isOf(Blocks.POWERED_RAIL)) {
+
+                    // powered rail
+                    if (state.get(PoweredRailBlock.POWERED)) {
+                        this.boostAmount += 0.015; // 0.0 -> 1.0 in 3.33s
+                        this.boostAmount = Math.min(this.boostAmount, 1.0);
+                    }
+                    // unpowered rail
+                    else {
+                        this.boostAmount -= 0.02; // 1.0 -> 0.0 in 2.5s
+                        this.boostAmount = Math.max(this.boostAmount, 0);
+                    }
+                }
+            }
+            // out of fuel
+            else {
+                this.boostAmount -= 0.015;
+                this.boostAmount = Math.max(this.boostAmount, 0);
+            }
+
+            // off rail boost amount slowdown is done in AbstractMinecartEntityMixin
+
+            // update train visual states
+            final var oldVisualState = thisRtpCart.railtransportplus$getVisualState();
+            thisRtpCart.railtransportplus$updateVisualState();
+
+            // if visual state changed, update the entire train
+            if (oldVisualState != thisRtpCart.railtransportplus$getVisualState()) {
+                for (final var cart : ((RtpAbstractMinecartEntity) this).railtransportplus$getTrain()) {
+                    ((RtpAbstractMinecartEntity) cart).railtransportplus$updateVisualState();
+                }
+            }
         }
     }
 
     @Inject(at = @At("RETURN"), method = "interact(Lnet/minecraft/entity/player/PlayerEntity;" +
             "Lnet/minecraft/util/Hand;)Lnet/minecraft/util/ActionResult;")
-    public void interact(
-            PlayerEntity player,
-            Hand hand,
-            CallbackInfoReturnable<ActionResult> cir
-    ) {
-        if (this.getFuel() > 0) railtransportplus$updatePush();
+    public void interact(PlayerEntity player, Hand hand, CallbackInfoReturnable<ActionResult> cir) {
+        if (this.fuel > 0) railtransportplus$updatePush();
     }
 
 /* ----------------------------------------------- Interface Injection ---------------------------------------------- */
@@ -138,7 +177,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
                 // all carts fueled
                 if (((RtpAbstractMinecartEntity) this).railtransportplus$getTrain().stream()
                         .filter((c) -> c instanceof FurnaceMinecartEntity)
-                        .allMatch((c) -> ((FurnaceMinecartEntityMixin) c).getFuel() > 0)) {
+                        .allMatch((c) -> ((FurnaceMinecartEntityMixin) c).fuel > 0)) {
                     thisFurnaceCart.pushX = this.getX() - prevCart.getX();
                     thisFurnaceCart.pushZ = this.getZ() - prevCart.getZ();
                 } else {
@@ -149,7 +188,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
             // has no current push & no previous cart to update push from
             else if (thisFurnaceCart.pushX == 0 & thisFurnaceCart.pushZ == 0) {
                 // unfuel
-                this.setFuel(0);
+                this.fuel = 0;
             }
         }
         // trailing cart
@@ -164,7 +203,12 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
     }
 
     @Override
-    public boolean railtransportplus$isReceivingBoost() {
-        return isReceivingBoost;
+    public double railtransportplus$getBoostAmount() {
+        return boostAmount;
+    }
+
+    @Override
+    public void railtransportplus$setBoostAmount(double boostAmount) {
+        this.boostAmount = boostAmount;
     }
 }
