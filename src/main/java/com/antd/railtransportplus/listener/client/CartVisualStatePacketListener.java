@@ -13,8 +13,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.network.PacketByteBuf;
 
-import static com.antd.railtransportplus.RailTransportPlus.LOGGER;
-
 public class CartVisualStatePacketListener implements ClientPlayNetworking.PlayChannelHandler {
 
     @Override
@@ -29,7 +27,6 @@ public class CartVisualStatePacketListener implements ClientPlayNetworking.PlayC
                     .get(cartUuid);
 
             if (cart != null) cart.railtransportplus$setCartVisualState(cartType);
-            else LOGGER.warn("Could not find cart.");
         }
     }
 }

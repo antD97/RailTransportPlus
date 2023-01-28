@@ -56,6 +56,8 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
 
     private boolean ignorePassenger = false;
 
+    private boolean skipMove = false;
+
     public AbstractMinecartEntityMixin(EntityType<?> type, World world) {
         super(type, world);
     }
@@ -86,8 +88,15 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
         if (nextCart != null) cir.setReturnValue(boostMpt * 2.0);
     }
 
+    @Inject(at = @At("HEAD"), method = "tick()V")
+    public void tickHead(CallbackInfo ci) {
+        if (!this.world.isClient() && nextCart != null) {
+            skipMove = true;
+        }
+    }
+
     @Inject(at = @At("RETURN"), method = "tick()V")
-    public void tick(CallbackInfo ci) {
+    public void tickReturn(CallbackInfo ci) {
 
         if (!this.world.isClient()) {
             isTicked = true;
@@ -100,7 +109,6 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
                     final var next = rtpCart.railtransportplus$getNextCart();
                     if (next != null) {
 
-                        final var originalVelocity = cart.getVelocity();
                         final var distanceToCart = cart.getPos().distanceTo(next.getPos());
 
                         // too far, unlink
@@ -108,7 +116,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
                             rtpCart.railtransportplus$unlinkCart(next);
                         }
                         // move towards next cart
-                        else if (distanceToCart > 1.67) {
+                        else {
 
                             // calculate cart pull velocity
                             final var vectorToCart = next.getPos().subtract(cart.getPos());
@@ -158,32 +166,21 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
                                 ((AbstractMinecartEntityMixin) (Object) cart).invokeMoveOffRail();
                             }
                         }
-
-                        // reset ticked & restore original velocity
+                        
                         rtpCart.railtransportplus$resetTicked();
-                        cart.setVelocity(originalVelocity);
                     }
                 }
-            }
-
-            // debug log
-            if (((AbstractMinecartEntity) (Object) this).getScoreboardTags().contains("debug")) {
-                LOGGER.info("--------------------");
-                if (((RtpAbstractMinecartEntity)(Object)this).railtransportplus$getNextCart() != null) {
-                    LOGGER.info(((AbstractMinecartEntity) (Object) this).getPos().distanceTo(nextCart.getPos()) + "");
-                }
-//                for (var cart : this.train) {
-////                    LOGGER.info(cart.toString());
-//
-//                }
             }
         }
     }
 
     @Inject(at = @At("HEAD"), method = "moveOnRail(Lnet/minecraft/util/math/BlockPos;" +
-            "Lnet/minecraft/block/BlockState;)V")
+            "Lnet/minecraft/block/BlockState;)V", cancellable = true)
     public void moveOnRailHead(BlockPos pos, BlockState state, CallbackInfo ci) {
-        if (nextCart != null) {
+        if (skipMove) {
+            skipMove = false;
+            ci.cancel();
+        } else if (nextCart != null) {
             ((RtpAbstractBlockState) state).railtransportplus$setIgnorePoweredRail(true);
             ignorePassenger = true;
         }
@@ -196,8 +193,13 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
         ignorePassenger = false;
     }
 
-    @Inject(at = @At("HEAD"), method = "moveOffRail()V")
+    @Inject(at = @At("HEAD"), method = "moveOffRail()V", cancellable = true)
     public void moveOffRail(CallbackInfo ci) {
+        if (skipMove) {
+            skipMove = false;
+            ci.cancel();
+        }
+
         if ((Object) this instanceof FurnaceMinecartEntity) {
             final var thisRtpFurnaceCart = (RtpFurnaceMinecartEntity) this;
             thisRtpFurnaceCart.railtransportplus$setBoostAmount(

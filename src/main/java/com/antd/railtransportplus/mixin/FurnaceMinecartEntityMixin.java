@@ -4,7 +4,6 @@
  */
 package com.antd.railtransportplus.mixin;
 
-import com.antd.railtransportplus.RailTransportPlus;
 import com.antd.railtransportplus.interfaceinject.RtpAbstractMinecartEntity;
 import com.antd.railtransportplus.interfaceinject.RtpFurnaceMinecartEntity;
 import net.minecraft.block.BlockState;
