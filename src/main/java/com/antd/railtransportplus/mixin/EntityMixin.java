@@ -21,8 +21,6 @@ public abstract class EntityMixin {
         final var thisEntity = (Entity) (Object) this;
 
         if (!thisEntity.world.isClient() && this instanceof final RtpAbstractMinecartEntity thisCart) {
-
-            // unlink carts
             thisCart.railtransportplus$unlinkBothCarts();
         }
     }

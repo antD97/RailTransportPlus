@@ -30,6 +30,7 @@ public class UseEntityListener implements UseEntityCallback {
 
         // use chain on cart
         if (!world.isClient()
+                && hitResult != null
                 && entity instanceof AbstractMinecartEntity
                 && player.isSneaking()
                 && player.getStackInHand(hand).isOf(Items.CHAIN)

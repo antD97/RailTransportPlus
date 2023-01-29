@@ -19,6 +19,8 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.entity.vehicle.FurnaceMinecartEntity;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundEvents;
@@ -26,6 +28,7 @@ import net.minecraft.tag.BlockTags;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.GameRules;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
@@ -166,7 +169,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
                                 ((AbstractMinecartEntityMixin) (Object) cart).invokeMoveOffRail();
                             }
                         }
-                        
+
                         rtpCart.railtransportplus$resetTicked();
                     }
                 }
@@ -329,15 +332,27 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
             railtransportplus$setNextCart(null);
             ((RtpAbstractMinecartEntity) unlinkedCart).railtransportplus$setPrevCart(null);
 
+            // item drop
+            if (this.world.getGameRules().get(GameRules.DO_ENTITY_DROPS).get()) {
+                this.dropItem(Items.CHAIN);
+            }
+
+            // sound
             ((AbstractMinecartEntity) (Object) this)
                     .playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
-        }
-        else if (this.prevCart == cart) {
+
+        } else if (this.prevCart == cart) {
             // unlink
             unlinkedCart = this.prevCart;
             railtransportplus$setPrevCart(null);
             ((RtpAbstractMinecartEntity) unlinkedCart).railtransportplus$setNextCart(null);
 
+            // item drop
+            if (this.world.getGameRules().get(GameRules.DO_ENTITY_DROPS).get()) {
+                this.dropItem(Items.CHAIN);
+            }
+
+            // sound
             ((AbstractMinecartEntity) (Object) this)
                     .playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
         }
