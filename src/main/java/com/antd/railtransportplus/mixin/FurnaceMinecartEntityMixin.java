@@ -112,30 +112,21 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
 
         if (thisRtpCart.railtransportplus$getNextCart() == null) {
 
-            if (this.fuel > 0) {
-                // standard rail
-                if (state.isOf(Blocks.RAIL)) {
-                    this.boostAmount -= 0.01; // 1.0 -> 0.0 in 5s
-                    this.boostAmount = Math.max(this.boostAmount, 0);
-                } else if (state.isOf(Blocks.POWERED_RAIL)) {
-
-                    // powered rail
-                    if (state.get(PoweredRailBlock.POWERED)) {
-                        this.boostAmount += 0.015; // 0.0 -> 1.0 in 3.33s
-                        this.boostAmount = Math.min(this.boostAmount, 1.0);
-                    }
-                    // unpowered rail
-                    else {
-                        this.boostAmount -= 0.02; // 1.0 -> 0.0 in 2.5s
-                        this.boostAmount = Math.max(this.boostAmount, 0);
-                    }
+            // standard rail
+            if (state.isOf(Blocks.RAIL)) this.boostAmount -= 0.01; // 1.0 -> 0.0 in 5s
+            else if (state.isOf(Blocks.POWERED_RAIL)) {
+                // powered rail
+                if (state.get(PoweredRailBlock.POWERED)) {
+                    // todo change to 0.01 (0.0->1.0 in 5s)?
+                    if (this.fuel > 0) this.boostAmount += 0.015; // 0.0 -> 1.0 in 3.33s
+                    else this.boostAmount -= 0.01; // 1.0 -> 0.0 in 5s
                 }
+                // unpowered rail
+                else this.boostAmount -= 0.02; // 1.0 -> 0.0 in 2.5s
             }
-            // out of fuel
-            else {
-                this.boostAmount -= 0.015;
-                this.boostAmount = Math.max(this.boostAmount, 0);
-            }
+
+            // clamp boost
+            this.boostAmount = Math.min(Math.max(this.boostAmount, 0), 1.0);
 
             // off rail boost amount slowdown is done in AbstractMinecartEntityMixin
 

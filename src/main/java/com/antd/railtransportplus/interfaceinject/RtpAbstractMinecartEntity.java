@@ -62,6 +62,11 @@ public interface RtpAbstractMinecartEntity {
     void railtransportplus$resetTicked();
 
     /**
+     * Sets this skip move status back to false.
+     */
+    void railtransportplus$resetSkipMove();
+
+    /**
      * Creates an updated train list with all the linked carts.
      */
     LinkedList<AbstractMinecartEntity> railtransportplus$createTrain();
@@ -96,4 +101,6 @@ public interface RtpAbstractMinecartEntity {
     void railtransportplus$updateVisualState();
 
     boolean railtransportplus$getIgnorePassenger();
+
+    void railtransportplus$move(boolean isTrailing);
 }

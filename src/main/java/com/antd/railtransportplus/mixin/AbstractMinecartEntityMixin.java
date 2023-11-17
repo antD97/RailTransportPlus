@@ -7,14 +7,11 @@ package com.antd.railtransportplus.mixin;
 import com.antd.railtransportplus.CartVisualState;
 import com.antd.railtransportplus.LinkResult;
 import com.antd.railtransportplus.interfaceinject.RtpAbstractMinecartEntity;
-import com.antd.railtransportplus.interfaceinject.RtpAbstractBlockState;
 import com.antd.railtransportplus.interfaceinject.RtpFurnaceMinecartEntity;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.block.AbstractRailBlock;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.RailBlock;
+import net.minecraft.block.*;
+import net.minecraft.block.enums.RailShape;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
@@ -30,7 +27,7 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameRules;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.gen.Invoker;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -66,49 +63,58 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
 
 /* ------------------------------------------------ Invoker/Accessor ------------------------------------------------ */
 
-    @Invoker("getMaxSpeed")
-    public abstract double invokeGetMaxSpeed();
+    @Shadow public abstract void onActivatorRail(int x, int y, int z, boolean powered);
 
-    @Invoker("moveOffRail")
-    public abstract void invokeMoveOffRail();
+    @Shadow protected abstract void moveOnRail(BlockPos pos, BlockState state);
 
-    @Invoker("moveOnRail")
-    public abstract void invokeMoveOnRail(BlockPos pos, BlockState state);
+    @Shadow protected abstract double getMaxSpeed();
+
+    @Shadow protected abstract void moveOffRail();
 
 /* ----------------------------------------------------- Inject ----------------------------------------------------- */
 
     @Inject(at = @At("RETURN"), method = "<init>(Lnet/minecraft/entity/EntityType;" +
         "Lnet/minecraft/world/World;)V")
     public void constructor(CallbackInfo ci) {
-    train.add((AbstractMinecartEntity) (Object) this);
+        train.add((AbstractMinecartEntity) (Object) this);
     }
 
     @Inject(at = @At("RETURN"), method = "getMaxSpeed()D", cancellable = true)
     public void getMaxSpeed(CallbackInfoReturnable<Double> cir) {
         final var boostMpt = worldConfig.maxBoostedSpeed / 20.0;
 
-        if (nextCart != null) cir.setReturnValue(boostMpt * 2.0);
+        if (nextCart != null) cir.setReturnValue(boostMpt * 2.0); // x2 to let trailing cars catch up
     }
 
     @Inject(at = @At("HEAD"), method = "tick()V")
     public void tickHead(CallbackInfo ci) {
-        if (!this.world.isClient() && nextCart != null) {
-            skipMove = true;
+        if (!this.world.isClient()) {
+            isTicked = false;
+            if (prevCart != null || nextCart != null) skipMove = true;
         }
     }
 
     @Inject(at = @At("RETURN"), method = "tick()V")
     public void tickReturn(CallbackInfo ci) {
 
-        if (!this.world.isClient()) {
+        if (!this.world.isClient() && (prevCart != null || nextCart != null)) {
             isTicked = true;
 
             // if all carts were ticked
             if (train.stream().allMatch(c -> ((RtpAbstractMinecartEntity) c).railtransportplus$isTicked())) {
-                // all trailing carts...
+
                 for (var cart : train) {
                     final var rtpCart = (RtpAbstractMinecartEntity) cart;
                     final var next = rtpCart.railtransportplus$getNextCart();
+
+                    ((AbstractMinecartEntityMixin) (Object) cart).railtransportplus$resetSkipMove();
+
+                    // head cart
+                    if (next == null) {
+                        ((AbstractMinecartEntityMixin) (Object) cart).railtransportplus$move(false);
+                    }
+
+                    // trailing carts...
                     if (next != null) {
 
                         final var distanceToCart = cart.getPos().distanceTo(next.getPos());
@@ -131,7 +137,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
                             }
 
                             final var horizontalSpeed = Math.min(
-                                    ((AbstractMinecartEntityMixin) (Object) cart).invokeGetMaxSpeed(),
+                                    ((AbstractMinecartEntityMixin) (Object) cart).getMaxSpeed(),
                                     speedLimit
                             );
 
@@ -144,29 +150,9 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
                             else if (vectorToCart.z < 0) zVel = -horizontalSpeed;
 
                             // apply cart pull velocity
-                            cart.setVelocity(new Vec3d(xVel, 0, zVel));
+                            cart.setVelocity(new Vec3d(xVel, cart.getVelocity().y, zVel));
 
-                            int i = MathHelper.floor(cart.getX());
-                            int j = MathHelper.floor(cart.getY());
-                            int k = MathHelper.floor(cart.getZ());
-                            if (cart.world.getBlockState(new BlockPos(i, j - 1, k)).isIn(BlockTags.RAILS)) {
-                                --j;
-                            }
-
-                            BlockPos blockPos = new BlockPos(i, j, k);
-                            BlockState blockState = cart.world.getBlockState(blockPos);
-                            if (AbstractRailBlock.isRail(blockState)) {
-                                final var block = (AbstractRailBlock) blockState.getBlock();
-
-                                final var railBlock = (RailBlock) Blocks.RAIL;
-
-                                final var railState = railBlock.getDefaultState()
-                                        .with(railBlock.getShapeProperty(), blockState.get(block.getShapeProperty()));
-
-                                ((AbstractMinecartEntityMixin) (Object) cart).invokeMoveOnRail(blockPos, railState);
-                            } else {
-                                ((AbstractMinecartEntityMixin) (Object) cart).invokeMoveOffRail();
-                            }
+                            ((AbstractMinecartEntityMixin) (Object) cart).railtransportplus$move(true);
                         }
 
                         rtpCart.railtransportplus$resetTicked();
@@ -179,28 +165,14 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
     @Inject(at = @At("HEAD"), method = "moveOnRail(Lnet/minecraft/util/math/BlockPos;" +
             "Lnet/minecraft/block/BlockState;)V", cancellable = true)
     public void moveOnRailHead(BlockPos pos, BlockState state, CallbackInfo ci) {
-        if (skipMove) {
-            skipMove = false;
-            ci.cancel();
-        } else if (nextCart != null) {
-            ((RtpAbstractBlockState) state).railtransportplus$setIgnorePoweredRail(true);
-            ignorePassenger = true;
-        }
-    }
-
-    @Inject(at = @At("RETURN"), method = "moveOnRail(Lnet/minecraft/util/math/BlockPos;" +
-            "Lnet/minecraft/block/BlockState;)V")
-    public void moveOnRailReturn(BlockPos pos, BlockState state, CallbackInfo ci) {
-        ((RtpAbstractBlockState) state).railtransportplus$setIgnorePoweredRail(false);
-        ignorePassenger = false;
+        if (skipMove) ci.cancel();
+        if (nextCart != null) ignorePassenger = true;
     }
 
     @Inject(at = @At("HEAD"), method = "moveOffRail()V", cancellable = true)
     public void moveOffRail(CallbackInfo ci) {
-        if (skipMove) {
-            skipMove = false;
-            ci.cancel();
-        }
+        if (skipMove) ci.cancel();
+        ignorePassenger = false;
 
         if ((Object) this instanceof FurnaceMinecartEntity) {
             final var thisRtpFurnaceCart = (RtpFurnaceMinecartEntity) this;
@@ -403,6 +375,11 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
         this.isTicked = false;
     }
 
+    @Override
+    public void railtransportplus$resetSkipMove() {
+        this.skipMove = false;
+    }
+
     /** Creates an updated train list with all the linked carts. */
     @Override
     public LinkedList<AbstractMinecartEntity> railtransportplus$createTrain() {
@@ -494,6 +471,54 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
     }
 
     @Override
+    public void railtransportplus$move(boolean isTrailing) {
+        var i = MathHelper.floor(this.getX());
+        var j = MathHelper.floor(this.getY());
+        var k = MathHelper.floor(this.getZ());
+        if (this.world.getBlockState(new BlockPos(i, j - 1, k)).isIn(BlockTags.RAILS)) {
+            --j;
+        }
+
+        final var blockPos = new BlockPos(i, j, k);
+        final var blockState = this.world.getBlockState(blockPos);
+        if (AbstractRailBlock.isRail(blockState)) {
+
+            if (isTrailing) { // trailing carts ignore powered rails
+                final var block = (AbstractRailBlock) blockState.getBlock();
+
+                final var railBlock = (RailBlock) Blocks.RAIL;
+
+                final var overrideBlockState = railBlock.getDefaultState()
+                        .with(railBlock.getShapeProperty(), blockState.get(block.getShapeProperty()));
+
+                // remove velocity from slope
+                double g = 0.0078125;
+                if (this.isTouchingWater()) g *= 0.2;
+                RailShape railShape = blockState.get(((AbstractRailBlock)blockState.getBlock()).getShapeProperty());
+                switch (railShape) {
+                    case ASCENDING_EAST -> this.setVelocity(this.getVelocity().subtract(-g, 0.0, 0.0));
+                    case ASCENDING_WEST -> this.setVelocity(this.getVelocity().subtract(g, 0.0, 0.0));
+                    case ASCENDING_NORTH -> this.setVelocity(this.getVelocity().subtract(0.0, 0.0, g));
+                    case ASCENDING_SOUTH -> this.setVelocity(this.getVelocity().subtract(0.0, 0.0, -g));
+                }
+
+                this.moveOnRail(blockPos, overrideBlockState);
+
+            } else { // head carts interact with powered rails like normal
+                this.moveOnRail(blockPos, blockState);
+            }
+
+            if (blockState.isOf(Blocks.ACTIVATOR_RAIL)) {
+                this.onActivatorRail(i, j, k, blockState.get(PoweredRailBlock.POWERED));
+            }
+        } else {
+            // gravity
+            this.setVelocity(this.getVelocity().add(0.0, this.isTouchingWater() ? -0.005 : -0.04, 0.0));
+            this.moveOffRail();
+        }
+    }
+
+    @Override
     public boolean railtransportplus$getIgnorePassenger() {
         return ignorePassenger;
     }
@@ -528,7 +553,9 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
                 : worldConfig.maxFurnaceCartsPerTrain + 1;
 
         if (updatedTrain.size() - furnaceCartCount > cartLimit) {
-            for (var c : updatedTrain) ((RtpAbstractMinecartEntity) c).railtransportplus$unlinkBothCarts();
+            for (var c : updatedTrain) {
+                ((RtpAbstractMinecartEntity) c).railtransportplus$unlinkBothCarts();
+            }
         }
     }
 }
