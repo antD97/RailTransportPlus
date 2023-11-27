@@ -5,7 +5,7 @@
 package com.antd.railtransportplus.listener.server;
 
 import com.antd.railtransportplus.LinkResult;
-import com.antd.railtransportplus.interfaceinject.RtpAbstractMinecartEntity;
+import com.antd.railtransportplus.interfaceinject.IRtpAbstractMinecartEntity;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
@@ -28,13 +28,12 @@ public class ServerEntityLoadListener implements ServerEntityEvents.Load {
     /**
      * Key: cart to connect to link to; Value: cart to link
      */
-    private final Map<AbstractMinecartEntity, AbstractMinecartEntity> waitingForCartLimitCarts = new HashMap<>();
+//    private final Map<AbstractMinecartEntity, AbstractMinecartEntity> waitingForCartLimitCarts = new HashMap<>();
 
     @Override
     public void onLoad(Entity entity, ServerWorld world) {
-
         if (entity instanceof final AbstractMinecartEntity cart) {
-            final var rtpCart = (RtpAbstractMinecartEntity) entity;
+            final var rtpCart = (IRtpAbstractMinecartEntity) entity;
 
             if (rtpCart.railtransportplus$getOnLoadNextCart() != null) {
                 final var loadedEntity = world.getEntity(rtpCart.railtransportplus$getOnLoadNextCart());
@@ -42,19 +41,16 @@ public class ServerEntityLoadListener implements ServerEntityEvents.Load {
                 // link cart
                 if (loadedEntity != null) {
 
-                    final var result = ((RtpAbstractMinecartEntity) loadedEntity).railtransportplus$linkCart(cart);
-
-                    if (result == LinkResult.CART_LIMIT) {
-                        waitingForCartLimitCarts.put((AbstractMinecartEntity) loadedEntity, cart);
-                    } else if (result == LinkResult.SUCCESS) {
-                        checkCartLimitCarts(rtpCart.railtransportplus$getTrain());
-                    } else {
+                    final var result = ((IRtpAbstractMinecartEntity) loadedEntity).railtransportplus$linkCart(cart,
+                            true);
+                    if (result != LinkResult.SUCCESS) {
                         LOGGER.warn("Failed ot link cart on load: " + result);
                     }
                 }
                 // link cart when the cart to link to is loaded
                 else {
                     waitingForUnloadedCarts.put(rtpCart.railtransportplus$getOnLoadNextCart(), cart);
+                    LOGGER.info("Added cart waiting for unloaded cart: \"" + cart + "\" waiting for \"" + rtpCart.railtransportplus$getOnLoadNextCart() + "\"");
                 }
             }
 
@@ -62,30 +58,27 @@ public class ServerEntityLoadListener implements ServerEntityEvents.Load {
             final var waitingCart = waitingForUnloadedCarts.remove(cart.getUuid());
             if (waitingCart != null) {
 
-                final var result = rtpCart.railtransportplus$linkCart(waitingCart);
-
-                if (result == LinkResult.CART_LIMIT) {
-                    waitingForCartLimitCarts.put(waitingCart, cart);
-                } else if (result == LinkResult.SUCCESS) {
-                    checkCartLimitCarts(rtpCart.railtransportplus$getTrain());
-                } else {
+                final var result = rtpCart.railtransportplus$linkCart(waitingCart, true);
+                if (result != LinkResult.SUCCESS) {
                     LOGGER.info("Failed to link waiting cart on load: " + result);
                 }
             }
         }
     }
 
-    private void checkCartLimitCarts(LinkedList<AbstractMinecartEntity> train) {
-        if (waitingForCartLimitCarts.containsKey(train.getLast())) {
-
-            final var cartToLink = waitingForCartLimitCarts.get(train.getLast());
-
-            final var result = ((RtpAbstractMinecartEntity) train.getLast()).railtransportplus$linkCart(cartToLink);
-
-            if (result == LinkResult.SUCCESS) {
-                waitingForCartLimitCarts.remove(train.getLast());
-                checkCartLimitCarts(((RtpAbstractMinecartEntity) cartToLink).railtransportplus$getTrain());
-            }
-        }
-    }
+//    private void railtransportplus$checkCartLimitCarts(LinkedList<AbstractMinecartEntity> train) {
+//        if (waitingForCartLimitCarts.containsKey(train.getLast())) {
+//
+//            final var cartToLink = waitingForCartLimitCarts.get(train.getLast());
+//
+//            final var result = ((IRtpAbstractMinecartEntity) train.getLast()).railtransportplus$linkCart(cartToLink);
+//
+//            if (result == LinkResult.SUCCESS) {
+//                waitingForCartLimitCarts.remove(train.getLast());
+//                railtransportplus$checkCartLimitCarts(((IRtpAbstractMinecartEntity) cartToLink).railtransportplus$getTrain());
+//            } else {
+//                LOGGER.info("Failed to link waiting cart on load: " + result);
+//            }
+//        }
+//    }
 }

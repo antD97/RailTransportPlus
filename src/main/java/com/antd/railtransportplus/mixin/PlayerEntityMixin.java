@@ -5,8 +5,8 @@
 package com.antd.railtransportplus.mixin;
 
 import com.antd.railtransportplus.LinkResult;
-import com.antd.railtransportplus.interfaceinject.RtpPlayerEntity;
-import com.antd.railtransportplus.interfaceinject.RtpAbstractMinecartEntity;
+import com.antd.railtransportplus.interfaceinject.IRtpAbstractMinecartEntity;
+import com.antd.railtransportplus.interfaceinject.IRtpPlayerEntity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -22,7 +22,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(PlayerEntity.class)
-public abstract class PlayerEntityMixin extends LivingEntity implements RtpPlayerEntity {
+public abstract class PlayerEntityMixin extends LivingEntity implements IRtpPlayerEntity {
 
     private AbstractMinecartEntity linkingCart = null;
 
@@ -61,7 +61,7 @@ public abstract class PlayerEntityMixin extends LivingEntity implements RtpPlaye
 
         if (linkingCart == null) linkingCart = cart;
         else {
-            final var result = ((RtpAbstractMinecartEntity) linkingCart).railtransportplus$linkCart(cart);
+            final var result = ((IRtpAbstractMinecartEntity) linkingCart).railtransportplus$linkCart(cart, false);
             linkingCart = null;
             thisPlayer.sendMessage(Text.of(result.message), true);
             if (result == LinkResult.SUCCESS) linked = true;

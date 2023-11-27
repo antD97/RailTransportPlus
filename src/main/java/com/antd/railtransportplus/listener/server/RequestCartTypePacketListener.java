@@ -4,7 +4,7 @@
  */
 package com.antd.railtransportplus.listener.server;
 
-import com.antd.railtransportplus.interfaceinject.RtpAbstractMinecartEntity;
+import com.antd.railtransportplus.interfaceinject.IRtpAbstractMinecartEntity;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -29,7 +29,7 @@ public class RequestCartTypePacketListener implements ServerPlayNetworking.PlayC
 
         // respond to request for cart visual state
         final var cart = (AbstractMinecartEntity) player.getWorld().getEntity(buf.readUuid());
-        final var rtpCart = (RtpAbstractMinecartEntity) cart;
+        final var rtpCart = (IRtpAbstractMinecartEntity) cart;
 
         final var resBuf = PacketByteBufs.create();
         resBuf.writeUuid(cart.getUuid());

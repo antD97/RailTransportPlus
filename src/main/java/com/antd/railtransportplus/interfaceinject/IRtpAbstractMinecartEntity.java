@@ -11,12 +11,12 @@ import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import java.util.LinkedList;
 import java.util.UUID;
 
-public interface RtpAbstractMinecartEntity {
+public interface IRtpAbstractMinecartEntity {
 
     /**
      * Links two carts with this as head and the other cart as the tail.
      */
-    LinkResult railtransportplus$linkCart(AbstractMinecartEntity otherCart);
+    LinkResult railtransportplus$linkCart(AbstractMinecartEntity otherCart, boolean force);
 
     /**
      * Unlink a specified cart.

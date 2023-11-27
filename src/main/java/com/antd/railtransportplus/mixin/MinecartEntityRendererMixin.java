@@ -5,7 +5,7 @@
 package com.antd.railtransportplus.mixin;
 
 import com.antd.railtransportplus.CartVisualState;
-import com.antd.railtransportplus.interfaceinject.RtpAbstractMinecartEntity;
+import com.antd.railtransportplus.interfaceinject.IRtpAbstractMinecartEntity;
 import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
@@ -64,7 +64,7 @@ public abstract class MinecartEntityRendererMixin<T extends AbstractMinecartEnti
                        VertexConsumerProvider vertexConsumerProvider, int i, CallbackInfo ci) {
 
         final var cartType =
-                ((RtpAbstractMinecartEntity) abstractMinecartEntity).railtransportplus$getVisualState();
+                ((IRtpAbstractMinecartEntity) abstractMinecartEntity).railtransportplus$getVisualState();
 
         if (cartType != CartVisualState.REGULAR) {
 

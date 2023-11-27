@@ -4,7 +4,7 @@
  */
 package com.antd.railtransportplus.interfaceinject;
 
-public interface RtpFurnaceMinecartEntity {
+public interface IRtpFurnaceMinecartEntity {
 
     /**
      * Updates pushX & pushZ values according to cart links.

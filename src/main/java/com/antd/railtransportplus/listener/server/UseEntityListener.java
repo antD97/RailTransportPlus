@@ -4,7 +4,7 @@
  */
 package com.antd.railtransportplus.listener.server;
 
-import com.antd.railtransportplus.interfaceinject.RtpPlayerEntity;
+import com.antd.railtransportplus.interfaceinject.IRtpPlayerEntity;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -37,7 +37,7 @@ public class UseEntityListener implements UseEntityCallback {
                 // ignore chain in offhand if there's chain in main hand
                 && !(hand == Hand.OFF_HAND && player.getStackInHand(Hand.MAIN_HAND).isOf(Items.CHAIN))) {
 
-            if (((RtpPlayerEntity) player).railtransportplus$linkCart((AbstractMinecartEntity) entity)) {
+            if (((IRtpPlayerEntity) player).railtransportplus$linkCart((AbstractMinecartEntity) entity)) {
                 entity.playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
                 if (!player.isCreative()) player.getStackInHand(hand).decrement(1);
             }

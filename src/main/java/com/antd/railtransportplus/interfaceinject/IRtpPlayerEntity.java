@@ -6,7 +6,7 @@ package com.antd.railtransportplus.interfaceinject;
 
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 
-public interface RtpPlayerEntity {
+public interface IRtpPlayerEntity {
 
     /**
      * Marks a cart for linking or links two carts if a cart is already marked (server side only).

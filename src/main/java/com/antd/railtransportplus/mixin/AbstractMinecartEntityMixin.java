@@ -6,8 +6,8 @@ package com.antd.railtransportplus.mixin;
 
 import com.antd.railtransportplus.CartVisualState;
 import com.antd.railtransportplus.LinkResult;
-import com.antd.railtransportplus.interfaceinject.RtpAbstractMinecartEntity;
-import com.antd.railtransportplus.interfaceinject.RtpFurnaceMinecartEntity;
+import com.antd.railtransportplus.interfaceinject.IRtpAbstractMinecartEntity;
+import com.antd.railtransportplus.interfaceinject.IRtpFurnaceMinecartEntity;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.block.*;
@@ -36,10 +36,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.LinkedList;
 import java.util.UUID;
 
-import static com.antd.railtransportplus.RailTransportPlus.*;
+import static com.antd.railtransportplus.RailTransportPlus.CART_VISUAL_STATE_PACKET_ID;
+import static com.antd.railtransportplus.RailTransportPlus.worldConfig;
 
 @Mixin(AbstractMinecartEntity.class)
-public abstract class AbstractMinecartEntityMixin extends Entity implements RtpAbstractMinecartEntity {
+public abstract class AbstractMinecartEntityMixin extends Entity implements IRtpAbstractMinecartEntity {
 
     private static final int MAX_LINK_DISTANCE = 8;
 
@@ -88,6 +89,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
 
     @Inject(at = @At("HEAD"), method = "tick()V")
     public void tickHead(CallbackInfo ci) {
+
         if (!this.world.isClient()) {
             isTicked = false;
             if (prevCart != null || nextCart != null) skipMove = true;
@@ -101,10 +103,10 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
             isTicked = true;
 
             // if all carts were ticked
-            if (train.stream().allMatch(c -> ((RtpAbstractMinecartEntity) c).railtransportplus$isTicked())) {
+            if (train.stream().allMatch(c -> ((IRtpAbstractMinecartEntity) c).railtransportplus$isTicked())) {
 
                 for (var cart : train) {
-                    final var rtpCart = (RtpAbstractMinecartEntity) cart;
+                    final var rtpCart = (IRtpAbstractMinecartEntity) cart;
                     final var next = rtpCart.railtransportplus$getNextCart();
 
                     ((AbstractMinecartEntityMixin) (Object) cart).railtransportplus$resetSkipMove();
@@ -149,6 +151,20 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
                             if (vectorToCart.z > 0) zVel = horizontalSpeed;
                             else if (vectorToCart.z < 0) zVel = -horizontalSpeed;
 
+                            // prevent overshoot on corners (moving past the following cart on either axis)
+                            final double cartX = cart.getPos().x;
+                            final double nextX = next.getPos().x;
+                            if ((cartX < nextX && cartX + xVel > nextX)
+                                    || (cartX > nextX && cartX + xVel < nextX)) {
+                                xVel = nextX - cartX;
+                            }
+                            final double cartZ = cart.getPos().z;
+                            final double nextZ = next.getPos().z;
+                            if ((cartZ < nextZ && cartZ + zVel > nextZ)
+                                    || (cartZ > nextZ && cartZ + zVel < nextZ)) {
+                                zVel = nextZ - cartZ;
+                            }
+
                             // apply cart pull velocity
                             cart.setVelocity(new Vec3d(xVel, cart.getVelocity().y, zVel));
 
@@ -175,21 +191,21 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
         ignorePassenger = false;
 
         if ((Object) this instanceof FurnaceMinecartEntity) {
-            final var thisRtpFurnaceCart = (RtpFurnaceMinecartEntity) this;
+            final var thisRtpFurnaceCart = (IRtpFurnaceMinecartEntity) this;
             thisRtpFurnaceCart.railtransportplus$setBoostAmount(
-                    Math.max(thisRtpFurnaceCart.railtransportplus$getBoostAmount() - 0.025, 0) // 1.0 -> 0.0 in 2s
+                      Math.max(thisRtpFurnaceCart.railtransportplus$getBoostAmount() - 0.025, 0) // 1.0 -> 0.0 in 2s
             );
 
             // update train visual states
-            final var thisRtpCart = (RtpAbstractMinecartEntity) this;
+            final var thisRtpCart = (IRtpAbstractMinecartEntity) this;
 
             final var oldVisualState = thisRtpCart.railtransportplus$getVisualState();
             thisRtpCart.railtransportplus$updateVisualState();
 
             // if visual state changed, update the entire train
             if (oldVisualState != thisRtpCart.railtransportplus$getVisualState()) {
-                for (final var cart : ((RtpAbstractMinecartEntity) this).railtransportplus$getTrain()) {
-                    ((RtpAbstractMinecartEntity) cart).railtransportplus$updateVisualState();
+                for (final var cart : ((IRtpAbstractMinecartEntity) this).railtransportplus$getTrain()) {
+                    ((IRtpAbstractMinecartEntity) cart).railtransportplus$updateVisualState();
                 }
             }
         }
@@ -210,7 +226,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
             final var loadedCart = world.getEntity(loadedUuid);
 
             if (loadedCart != null) { // not sure if this is possible
-                ((RtpAbstractMinecartEntity) loadedCart).railtransportplus$linkCart(thisCart);
+                ((IRtpAbstractMinecartEntity) loadedCart).railtransportplus$linkCart(thisCart, false);
             } else {
                 // load with entity on load listener
                 onLoadNextCart = loadedUuid;
@@ -221,73 +237,74 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
 /* ----------------------------------------------- Interface Injection ---------------------------------------------- */
 
     @Override
-    public LinkResult railtransportplus$linkCart(AbstractMinecartEntity otherCart) {
+    public LinkResult railtransportplus$linkCart(AbstractMinecartEntity otherCart, boolean force) {
 
-        // check self
-        if (otherCart == (Object) this) return LinkResult.SAME_CART;
+        if (!force) {
+            // check self
+            if (otherCart == (Object) this) return LinkResult.SAME_CART;
 
-        // check removed
-        if (this.isRemoved() || otherCart.isRemoved()) return LinkResult.CART_REMOVED;
+            // check removed
+            if (this.isRemoved() || otherCart.isRemoved()) return LinkResult.CART_REMOVED;
 
-        // check too far
-        if (this.getPos().distanceTo(otherCart.getPos()) > MAX_LINK_DISTANCE) {
-            return LinkResult.TOO_FAR;
-        }
-
-        // check already has previous cart
-        if (this.prevCart != null) return LinkResult.HAS_PREV_CART;
-
-        // linked cart front check
-        if (((RtpAbstractMinecartEntity) otherCart).railtransportplus$getNextCart() != null)
-            return LinkResult.LINKED_CART_NOT_FRONT;
-
-        final var otherCartTrain = ((RtpAbstractMinecartEntity) otherCart).railtransportplus$getTrain();
-
-        // check already linked
-        if (this.train.contains(otherCart) || otherCartTrain.contains(this)) {
-            return LinkResult.SAME_TRAIN;
-        }
-
-        var furnaceCartCount = this.train.stream()
-                .filter((cart) -> cart instanceof FurnaceMinecartEntity).count();
-        furnaceCartCount += otherCartTrain.stream()
-                .filter((cart) -> cart instanceof FurnaceMinecartEntity).count();
-
-        if (otherCart instanceof FurnaceMinecartEntity) {
-            // furnace cart at front only check
-            if (!((Object) this instanceof FurnaceMinecartEntity)) {
-                return LinkResult.FURNACE_FRONT_ONLY;
+            // check too far
+            if (this.getPos().distanceTo(otherCart.getPos()) > MAX_LINK_DISTANCE) {
+                return LinkResult.TOO_FAR;
             }
-            else {
-                // furnace cart count check
-                if (furnaceCartCount > worldConfig.maxFurnaceCartsPerTrain) {
-                    return LinkResult.FURNACE_CART_LIMIT;
+
+            // check already has previous cart
+            if (this.prevCart != null) return LinkResult.HAS_PREV_CART;
+
+            // linked cart front check
+            if (((IRtpAbstractMinecartEntity) otherCart).railtransportplus$getNextCart() != null)
+                return LinkResult.LINKED_CART_NOT_FRONT;
+
+            final var otherCartTrain = ((IRtpAbstractMinecartEntity) otherCart).railtransportplus$getTrain();
+
+            // check already linked
+            if (this.train.contains(otherCart) || otherCartTrain.contains(this)) {
+                return LinkResult.SAME_TRAIN;
+            }
+
+            var furnaceCartCount = this.train.stream()
+                    .filter((cart) -> cart instanceof FurnaceMinecartEntity).count();
+            furnaceCartCount += otherCartTrain.stream()
+                    .filter((cart) -> cart instanceof FurnaceMinecartEntity).count();
+
+            if (otherCart instanceof FurnaceMinecartEntity) {
+                // furnace cart at front only check
+                if (!((Object) this instanceof FurnaceMinecartEntity)) {
+                    return LinkResult.FURNACE_FRONT_ONLY;
+                } else {
+                    // furnace cart count check
+                    if (furnaceCartCount > worldConfig.maxFurnaceCartsPerTrain) {
+                        return LinkResult.FURNACE_CART_LIMIT;
+                    }
                 }
-            }
-        } else {
-            // carts per furnace cart check
-            final var cartLimit = furnaceCartCount > 0 ?
-                    worldConfig.maxCartsPerFurnaceCart * furnaceCartCount
-                    : worldConfig.maxCartsPerFurnaceCart + 1;
+            } else {
+                // carts per furnace cart check
+                final var cartLimit = furnaceCartCount > 0 ?
+                        worldConfig.maxCartsPerFurnaceCart * furnaceCartCount
+                        : worldConfig.maxCartsPerFurnaceCart + 1;
 
-            if (this.train.size() + otherCartTrain.size() - furnaceCartCount > cartLimit) {
-                return LinkResult.CART_LIMIT;
+                if (this.train.size() + otherCartTrain.size() - furnaceCartCount > cartLimit) {
+                    return LinkResult.CART_LIMIT;
+                }
             }
         }
 
         // link carts
         railtransportplus$setPrevCart(otherCart);
-        ((RtpAbstractMinecartEntity) otherCart).railtransportplus$setNextCart(
+        ((IRtpAbstractMinecartEntity) otherCart).railtransportplus$setNextCart(
                 (AbstractMinecartEntity) (Object) this
         );
 
         // update train
         this.train = railtransportplus$createTrain();
-        for (var cart : this.train) ((RtpAbstractMinecartEntity) cart).railtransportplus$setTrain(this.train);
+        for (var cart : this.train) ((IRtpAbstractMinecartEntity) cart).railtransportplus$setTrain(this.train);
 
         // update front furnace cart push
         if (this.train.getFirst() instanceof FurnaceMinecartEntity) {
-            ((RtpFurnaceMinecartEntity) this.train.getFirst()).railtransportplus$updatePush();
+            ((IRtpFurnaceMinecartEntity) this.train.getFirst()).railtransportplus$updatePush();
         }
 
         return LinkResult.SUCCESS;
@@ -301,7 +318,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
             // unlink
             unlinkedCart = this.nextCart;
             railtransportplus$setNextCart(null);
-            ((RtpAbstractMinecartEntity) unlinkedCart).railtransportplus$setPrevCart(null);
+            ((IRtpAbstractMinecartEntity) unlinkedCart).railtransportplus$setPrevCart(null);
 
             // item drop
             if (this.world.getGameRules().get(GameRules.DO_ENTITY_DROPS).get()) {
@@ -316,7 +333,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
             // unlink
             unlinkedCart = this.prevCart;
             railtransportplus$setPrevCart(null);
-            ((RtpAbstractMinecartEntity) unlinkedCart).railtransportplus$setNextCart(null);
+            ((IRtpAbstractMinecartEntity) unlinkedCart).railtransportplus$setNextCart(null);
 
             // item drop
             if (this.world.getGameRules().get(GameRules.DO_ENTITY_DROPS).get()) {
@@ -387,16 +404,16 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
 
         // find front cart
         var frontCart = (AbstractMinecartEntity) (Object) this;
-        while (((RtpAbstractMinecartEntity)frontCart).railtransportplus$getNextCart() != null) {
-            frontCart = ((RtpAbstractMinecartEntity) frontCart).railtransportplus$getNextCart();
+        while (((IRtpAbstractMinecartEntity)frontCart).railtransportplus$getNextCart() != null) {
+            frontCart = ((IRtpAbstractMinecartEntity) frontCart).railtransportplus$getNextCart();
         }
 
         train.add(frontCart);
 
         // add previous carts to train
         var prev = frontCart;
-        while (((RtpAbstractMinecartEntity) prev).railtransportplus$getPrevCart() != null) {
-            prev = ((RtpAbstractMinecartEntity) prev).railtransportplus$getPrevCart();
+        while (((IRtpAbstractMinecartEntity) prev).railtransportplus$getPrevCart() != null) {
+            prev = ((IRtpAbstractMinecartEntity) prev).railtransportplus$getPrevCart();
             train.add(prev);
         }
 
@@ -434,7 +451,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
             // check boosted
             final var frontCart = this.train.getFirst();
             if (frontCart instanceof FurnaceMinecartEntity) {
-                if (((RtpFurnaceMinecartEntity) frontCart).railtransportplus$getBoostAmount() > 0) {
+                if (((IRtpFurnaceMinecartEntity) frontCart).railtransportplus$getBoostAmount() > 0) {
                     this.visualState = CartVisualState.TRAILING_BOOST;
                 }
             }
@@ -443,7 +460,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
         else {
             var isBoosted = false;
             if ((Object) this instanceof FurnaceMinecartEntity) {
-                if (((RtpFurnaceMinecartEntity) this).railtransportplus$getBoostAmount() > 0) {
+                if (((IRtpFurnaceMinecartEntity) this).railtransportplus$getBoostAmount() > 0) {
                     isBoosted = true;
                 }
             }
@@ -532,17 +549,17 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
      * and does a carts per furnace cart check.
      */
     private void railtransportplus$updateCartTrain(AbstractMinecartEntity cart) {
-        final var rtpCart = (RtpAbstractMinecartEntity) cart;
+        final var rtpCart = (IRtpAbstractMinecartEntity) cart;
 
         // update train
         final var updatedTrain = rtpCart.railtransportplus$createTrain();
         for (var c : updatedTrain) {
-            ((RtpAbstractMinecartEntity) c).railtransportplus$setTrain(updatedTrain);
+            ((IRtpAbstractMinecartEntity) c).railtransportplus$setTrain(updatedTrain);
         }
 
         // update front furnace cart push
         if (updatedTrain.getFirst() instanceof FurnaceMinecartEntity) {
-            ((RtpFurnaceMinecartEntity) updatedTrain.getFirst()).railtransportplus$updatePush();
+            ((IRtpFurnaceMinecartEntity) updatedTrain.getFirst()).railtransportplus$updatePush();
         }
 
         // carts per furnace cart check
@@ -554,7 +571,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements RtpA
 
         if (updatedTrain.size() - furnaceCartCount > cartLimit) {
             for (var c : updatedTrain) {
-                ((RtpAbstractMinecartEntity) c).railtransportplus$unlinkBothCarts();
+                ((IRtpAbstractMinecartEntity) c).railtransportplus$unlinkBothCarts();
             }
         }
     }
