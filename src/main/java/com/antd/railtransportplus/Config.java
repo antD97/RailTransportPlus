@@ -10,7 +10,7 @@ import java.util.Properties;
 public class Config {
 
     /** Default configuration settings. */
-    public final static Config DEFAULT = new Config(40, 3, 4);
+    public final static Config DEFAULT = new Config(50, 3, 4);
 
     /** Boosted furnace cart max speed. */
     public final double maxBoostedSpeed;

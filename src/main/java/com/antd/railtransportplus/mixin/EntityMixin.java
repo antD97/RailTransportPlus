@@ -20,16 +20,14 @@ public abstract class EntityMixin {
         final var thisEntity = (Entity) (Object) this;
 
         if (!thisEntity.world.isClient() && this instanceof final IRtpAbstractMinecartEntity thisCart) {
-            thisCart.railtransportplus$unlinkBothCarts();
+            thisCart.unlinkBothCarts();
         }
     }
 
     @Inject(at = @At("HEAD"), method = "hasPassengers()Z", cancellable = true)
     public void hasPassengers(CallbackInfoReturnable<Boolean> cir) {
         if (this instanceof final IRtpAbstractMinecartEntity thisRtpCart) {
-            if (thisRtpCart.railtransportplus$getIgnorePassenger()) {
-                cir.setReturnValue(false);
-            }
+            if (thisRtpCart.getIgnorePassenger()) cir.setReturnValue(false);
         }
     }
 }

@@ -9,9 +9,9 @@ public interface IRtpFurnaceMinecartEntity {
     /**
      * Updates pushX & pushZ values according to cart links.
      */
-    void railtransportplus$updatePush();
+    void updatePush();
 
-    double railtransportplus$getBoostAmount();
+    double getBoostAmount();
 
-    void railtransportplus$setBoostAmount(double boostAmount);
+    void setBoostAmount(double boostAmount);
 }

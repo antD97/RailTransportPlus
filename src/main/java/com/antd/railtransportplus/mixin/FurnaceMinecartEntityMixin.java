@@ -31,8 +31,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import static com.antd.railtransportplus.RailTransportPlus.worldConfig;
 
 @Mixin(FurnaceMinecartEntity.class)
-public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
-        implements IRtpFurnaceMinecartEntity {
+public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity implements IRtpFurnaceMinecartEntity {
 
     @Shadow @Final private static Ingredient ACCEPTABLE_FUEL;
     @Shadow protected abstract void setLit(boolean lit);
@@ -56,17 +55,16 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
                 final var thisRtpCart = (IRtpAbstractMinecartEntity) this;
 
                 // find chest cart immediately after furnace carts
-                final var firstChestCart = thisRtpCart.railtransportplus$getTrain().stream()
+                final var firstChestCart = thisRtpCart.getTrain().stream()
                         .filter((c) -> c instanceof StorageMinecartEntity)
                         .findFirst();
 
                 if (firstChestCart.isPresent()
                         && ((IRtpAbstractMinecartEntity) firstChestCart.get())
-                        .railtransportplus$getNextCart() instanceof FurnaceMinecartEntity) {
+                        .getNextCart() instanceof FurnaceMinecartEntity) {
 
                     // find first acceptable fuel
-                    final var cartInventory =
-                            ((ChestMinecartEntity) firstChestCart.get()).getInventory();
+                    final var cartInventory = ((ChestMinecartEntity) firstChestCart.get()).getInventory();
 
                     final var firstFuelStack = cartInventory.stream()
                             .filter((i) -> ACCEPTABLE_FUEL.test(i)).findFirst();
@@ -77,7 +75,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
                         firstFuelStack.get().decrement(1);
                         this.fuel = this.fuel + 3600;
 
-                        railtransportplus$updatePush();
+                        updatePush();
 
                         this.setLit(true);
                     }
@@ -86,7 +84,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
                 // haven't refueled
                 if (this.fuel <= 0) {
                     // update push to stop the train
-                    railtransportplus$updatePush();
+                    updatePush();
                 }
             }
         }
@@ -98,11 +96,8 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
         // mpt (meters per tick)
         final var boostMpt = worldConfig.maxBoostedSpeed / 20.0;
 
-        if (((IRtpAbstractMinecartEntity) this).railtransportplus$getNextCart() != null)
-            cir.setReturnValue(boostMpt * 2.0);
-        else {
-            cir.setReturnValue(defaultMaxSpeed + (boostMpt - defaultMaxSpeed) * boostAmount);
-        }
+        if (((IRtpAbstractMinecartEntity) this).getNextCart() != null) cir.setReturnValue(boostMpt * 2.0);
+        else cir.setReturnValue(defaultMaxSpeed + (boostMpt - defaultMaxSpeed) * boostAmount);
     }
 
     @Inject(at = @At("HEAD"), method = "moveOnRail(Lnet/minecraft/util/math/BlockPos;" +
@@ -110,7 +105,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
     public void moveOnRail(BlockPos pos, BlockState state, CallbackInfo ci) {
         final var thisRtpCart = (IRtpAbstractMinecartEntity) this;
 
-        if (thisRtpCart.railtransportplus$getNextCart() == null) {
+        if (thisRtpCart.getNextCart() == null) {
 
             // standard rail
             if (state.isOf(Blocks.RAIL)) this.boostAmount -= 0.01; // 1.0 -> 0.0 in 5s
@@ -131,13 +126,13 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
             // off rail boost amount slowdown is done in AbstractMinecartEntityMixin
 
             // update train visual states
-            final var oldVisualState = thisRtpCart.railtransportplus$getVisualState();
-            thisRtpCart.railtransportplus$updateVisualState();
+            final var oldVisualState = thisRtpCart.getVisualState();
+            thisRtpCart.updateVisualState();
 
             // if visual state changed, update the entire train
-            if (oldVisualState != thisRtpCart.railtransportplus$getVisualState()) {
-                for (final var cart : ((IRtpAbstractMinecartEntity) this).railtransportplus$getTrain()) {
-                    ((IRtpAbstractMinecartEntity) cart).railtransportplus$updateVisualState();
+            if (oldVisualState != thisRtpCart.getVisualState()) {
+                for (final var cart : ((IRtpAbstractMinecartEntity) this).getTrain()) {
+                    ((IRtpAbstractMinecartEntity) cart).updateVisualState();
                 }
             }
         }
@@ -146,17 +141,17 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
     @Inject(at = @At("RETURN"), method = "interact(Lnet/minecraft/entity/player/PlayerEntity;" +
             "Lnet/minecraft/util/Hand;)Lnet/minecraft/util/ActionResult;")
     public void interact(PlayerEntity player, Hand hand, CallbackInfoReturnable<ActionResult> cir) {
-        if (this.fuel > 0) railtransportplus$updatePush();
+        if (this.fuel > 0) updatePush();
     }
 
 /* ----------------------------------------------- Interface Injection ---------------------------------------------- */
 
     @Override
-    public void railtransportplus$updatePush() {
+    public void updatePush() {
         final var thisRtpCart = (IRtpAbstractMinecartEntity) this;
         final var thisFurnaceCart = (FurnaceMinecartEntity) (Object) this;
-        final var nextCart = thisRtpCart.railtransportplus$getNextCart();
-        final var prevCart = thisRtpCart.railtransportplus$getPrevCart();
+        final var nextCart = thisRtpCart.getNextCart();
+        final var prevCart = thisRtpCart.getPrevCart();
 
         // front cart
         if (nextCart == null) {
@@ -165,7 +160,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
             if (prevCart != null) {
 
                 // all carts fueled
-                if (((IRtpAbstractMinecartEntity) this).railtransportplus$getTrain().stream()
+                if (((IRtpAbstractMinecartEntity) this).getTrain().stream()
                         .filter((c) -> c instanceof FurnaceMinecartEntity)
                         .allMatch((c) -> ((FurnaceMinecartEntityMixin) c).fuel > 0)) {
                     thisFurnaceCart.pushX = this.getX() - prevCart.getX();
@@ -187,18 +182,17 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity
             thisFurnaceCart.pushZ = 0;
 
             // update push of front furnace minecart
-            ((IRtpFurnaceMinecartEntity) thisRtpCart.railtransportplus$getTrain().getFirst())
-                    .railtransportplus$updatePush();
+            ((IRtpFurnaceMinecartEntity) thisRtpCart.getTrain().getFirst()).updatePush();
         }
     }
 
     @Override
-    public double railtransportplus$getBoostAmount() {
+    public double getBoostAmount() {
         return boostAmount;
     }
 
     @Override
-    public void railtransportplus$setBoostAmount(double boostAmount) {
+    public void setBoostAmount(double boostAmount) {
         this.boostAmount = boostAmount;
     }
 }

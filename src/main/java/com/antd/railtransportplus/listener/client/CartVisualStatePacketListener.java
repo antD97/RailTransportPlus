@@ -11,7 +11,6 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
-import net.minecraft.client.world.ClientWorld;
 import net.minecraft.network.PacketByteBuf;
 
 public class CartVisualStatePacketListener implements ClientPlayNetworking.PlayChannelHandler {
@@ -24,10 +23,8 @@ public class CartVisualStatePacketListener implements ClientPlayNetworking.PlayC
         final var cartType = CartVisualState.values()[buf.readByte()];
 
         if (client.world != null) {
-            final var cart = (IRtpAbstractMinecartEntity) ((ClientWorldAccessor) client.world).invokeGetEntityLookup()
-                    .get(cartUuid);
-
-            if (cart != null) cart.railtransportplus$setCartVisualState(cartType);
+            final var cart = (IRtpAbstractMinecartEntity) ((ClientWorldAccessor) client.world).invokeGetEntityLookup().get(cartUuid);
+            if (cart != null) cart.setCartVisualState(cartType);
         }
     }
 }

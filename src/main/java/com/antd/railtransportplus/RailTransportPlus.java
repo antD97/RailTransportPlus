@@ -56,12 +56,8 @@ public class RailTransportPlus implements ModInitializer {
 			globalConfig = Config.DEFAULT;
 
 			try (var fw = new FileWriter(globalConfigFile)) {
-
-				globalConfig.createProperties()
-						.store(fw, "Default global config generated on:");
-
+				globalConfig.createProperties().store(fw, "Default global config generated on:");
 				LOGGER.info("Generated default global config.");
-
 			} catch (IOException e) {
 				LOGGER.error("Failed to write global properties file.", e);
 			}

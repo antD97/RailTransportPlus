@@ -13,5 +13,5 @@ public interface IRtpPlayerEntity {
      *
      * @return true if the two carts were linked
      */
-    boolean railtransportplus$linkCart(AbstractMinecartEntity cart);
+    boolean linkCart(AbstractMinecartEntity cart);
 }

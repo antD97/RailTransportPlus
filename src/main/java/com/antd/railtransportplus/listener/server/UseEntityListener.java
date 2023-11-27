@@ -37,7 +37,7 @@ public class UseEntityListener implements UseEntityCallback {
                 // ignore chain in offhand if there's chain in main hand
                 && !(hand == Hand.OFF_HAND && player.getStackInHand(Hand.MAIN_HAND).isOf(Items.CHAIN))) {
 
-            if (((IRtpPlayerEntity) player).railtransportplus$linkCart((AbstractMinecartEntity) entity)) {
+            if (((IRtpPlayerEntity) player).linkCart((AbstractMinecartEntity) entity)) {
                 entity.playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
                 if (!player.isCreative()) player.getStackInHand(hand).decrement(1);
             }

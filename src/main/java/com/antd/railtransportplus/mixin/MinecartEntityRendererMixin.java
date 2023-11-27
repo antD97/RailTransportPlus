@@ -64,7 +64,7 @@ public abstract class MinecartEntityRendererMixin<T extends AbstractMinecartEnti
                        VertexConsumerProvider vertexConsumerProvider, int i, CallbackInfo ci) {
 
         final var cartType =
-                ((IRtpAbstractMinecartEntity) abstractMinecartEntity).railtransportplus$getVisualState();
+                ((IRtpAbstractMinecartEntity) abstractMinecartEntity).getVisualState();
 
         if (cartType != CartVisualState.REGULAR) {
 
@@ -84,8 +84,7 @@ public abstract class MinecartEntityRendererMixin<T extends AbstractMinecartEnti
                         .getBuffer(this.model2.getLayer(TRAILING_BOOST_TEXTURE));
             }
 
-            this.model2.render(matrixStack, vertexConsumer, i, OverlayTexture.DEFAULT_UV,
-                    1.0F, 1.0F, 1.0F, 1.0F);
+            this.model2.render(matrixStack, vertexConsumer, i, OverlayTexture.DEFAULT_UV, 1.0F, 1.0F, 1.0F, 1.0F);
         }
     }
 }

@@ -54,14 +54,14 @@ public abstract class PlayerEntityMixin extends LivingEntity implements IRtpPlay
 /* ----------------------------------------------- Interface Injection ---------------------------------------------- */
 
     @Override
-    public boolean railtransportplus$linkCart(AbstractMinecartEntity cart) {
+    public boolean linkCart(AbstractMinecartEntity cart) {
         final var thisPlayer = (ServerPlayerEntity) (Object) this;
 
         var linked = false;
 
         if (linkingCart == null) linkingCart = cart;
         else {
-            final var result = ((IRtpAbstractMinecartEntity) linkingCart).railtransportplus$linkCart(cart, false);
+            final var result = ((IRtpAbstractMinecartEntity) linkingCart).linkCart(cart, false);
             linkingCart = null;
             thisPlayer.sendMessage(Text.of(result.message), true);
             if (result == LinkResult.SUCCESS) linked = true;

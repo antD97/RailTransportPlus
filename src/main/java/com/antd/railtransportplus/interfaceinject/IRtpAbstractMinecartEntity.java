@@ -16,91 +16,91 @@ public interface IRtpAbstractMinecartEntity {
     /**
      * Links two carts with this as head and the other cart as the tail.
      */
-    LinkResult railtransportplus$linkCart(AbstractMinecartEntity otherCart, boolean force);
+    LinkResult linkCart(AbstractMinecartEntity otherCart, boolean force);
 
     /**
      * Unlink a specified cart.
      */
-    void railtransportplus$unlinkCart(AbstractMinecartEntity cart);
+    void unlinkCart(AbstractMinecartEntity cart);
 
     /**
      * Unlinks both next and previous carts.
      */
-    default void railtransportplus$unlinkBothCarts() {
-        final var nextCart = railtransportplus$getNextCart();
-        final var prevCart = railtransportplus$getPrevCart();
-        if (nextCart != null) railtransportplus$unlinkCart(nextCart);
-        if (prevCart != null) railtransportplus$unlinkCart(prevCart);
+    default void unlinkBothCarts() {
+        final var nextCart = getNextCart();
+        final var prevCart = getPrevCart();
+        if (nextCart != null) unlinkCart(nextCart);
+        if (prevCart != null) unlinkCart(prevCart);
     }
 
-    AbstractMinecartEntity railtransportplus$getNextCart();
+    AbstractMinecartEntity getNextCart();
 
-    void railtransportplus$setNextCart(AbstractMinecartEntity nextCart);
+    void setNextCart(AbstractMinecartEntity nextCart);
 
-    AbstractMinecartEntity railtransportplus$getPrevCart();
+    AbstractMinecartEntity getPrevCart();
 
-    void railtransportplus$setPrevCart(AbstractMinecartEntity prevCart);
+    void setPrevCart(AbstractMinecartEntity prevCart);
 
     /**
      * Sets the train cart list for this cart.
      */
-    LinkedList<AbstractMinecartEntity> railtransportplus$getTrain();
+    LinkedList<AbstractMinecartEntity> getTrain();
 
     /**
      * Sets the train cart list for this linked cart.
      */
-    void railtransportplus$setTrain(LinkedList<AbstractMinecartEntity> train);
+    void setTrain(LinkedList<AbstractMinecartEntity> train);
 
     /**
      * Checks whether this cart has completed its Entity.tick() method.
      */
-    boolean railtransportplus$isTicked();
+    boolean isTicked();
 
     /**
      * Sets this carts tick status back to false.
      */
-    void railtransportplus$resetTicked();
+    void resetTicked();
 
     /**
      * Sets this skip move status back to false.
      */
-    void railtransportplus$resetSkipMove();
+    void resetSkipMove();
 
     /**
      * Creates an updated train list with all the linked carts.
      */
-    LinkedList<AbstractMinecartEntity> railtransportplus$createTrain();
+    LinkedList<AbstractMinecartEntity> createTrain();
 
     /**
      * Gets the UUID of the next cart to link once this cart loads.
      */
-    UUID railtransportplus$getOnLoadNextCart();
+    UUID getOnLoadNextCart();
 
     /**
      * Resets the UUID of the on-load next cart to null.
      */
-    void railtransportplus$resetOnLoadNextCart();
+    void resetOnLoadNextCart();
 
     /**
      * Gets the UUID of the previous cart to link once this cart loads.
      */
-    UUID railtransportplus$getOnLoadPrevCart();
+    UUID getOnLoadPrevCart();
 
     /**
      * Resets the UUID of the on-load previous cart to null.
      */
-    void railtransportplus$resetOnLoadPrevCart();
+    void resetOnLoadPrevCart();
 
-    CartVisualState railtransportplus$getVisualState();
+    CartVisualState getVisualState();
 
-    void railtransportplus$setCartVisualState(CartVisualState type);
+    void setCartVisualState(CartVisualState type);
 
     /**
      * Updates this cart's visual state and sends updates to clients if the state changed.
      */
-    void railtransportplus$updateVisualState();
+    void updateVisualState();
 
-    boolean railtransportplus$getIgnorePassenger();
+    boolean getIgnorePassenger();
 
-    void railtransportplus$move(boolean isTrailing);
+    void move(boolean isTrailing);
 }

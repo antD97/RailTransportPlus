@@ -23,8 +23,7 @@ public class ServerWorldLoadListener implements ServerWorldEvents.Load {
     public void onWorldLoad(MinecraftServer server, ServerWorld world) {
 
         final var worldPath = server.getSavePath(WorldSavePath.ROOT);
-        final var worldConfigFile =
-                worldPath.resolve("config/rail-transport-plus.properties").toFile();
+        final var worldConfigFile = worldPath.resolve("config/rail-transport-plus.properties").toFile();
 
         // ensure config directory exists
         worldPath.resolve("config").toFile().mkdir();
@@ -40,8 +39,7 @@ public class ServerWorldLoadListener implements ServerWorldEvents.Load {
         // copy global config
         if (worldConfig == null) {
             try (var fw = new FileWriter(worldConfigFile)) {
-                globalConfig.createProperties()
-                        .store(fw, "Copied from global config on:");
+                globalConfig.createProperties().store(fw, "Copied from global config on:");
                 worldConfig = globalConfig;
                 LOGGER.info("Copied global config to world.");
             } catch (IOException e) {
