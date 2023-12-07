@@ -1,5 +1,5 @@
 /*
- * Copyright © 2021 antD97
+ * Copyright © 2021-2023 antD97
  * Licensed under the MIT License https://antD.mit-license.org/
  */
 package com.antd.railtransportplus.mixin;
@@ -96,8 +96,11 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity 
         // mpt (meters per tick)
         final var boostMpt = worldConfig.maxBoostedSpeed / 20.0;
 
-        if (((IRtpAbstractMinecartEntity) this).getNextCart() != null) cir.setReturnValue(boostMpt * 2.0);
-        else cir.setReturnValue(defaultMaxSpeed + (boostMpt - defaultMaxSpeed) * boostAmount);
+        if (((IRtpAbstractMinecartEntity) this).getNextCart() != null) {
+            cir.setReturnValue(boostMpt * 2.0);
+        } else {
+            cir.setReturnValue(defaultMaxSpeed + (boostMpt - defaultMaxSpeed) * boostAmount);
+        }
     }
 
     @Inject(at = @At("HEAD"), method = "moveOnRail(Lnet/minecraft/util/math/BlockPos;" +
@@ -108,16 +111,15 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity 
         if (thisRtpCart.getNextCart() == null) {
 
             // standard rail
-            if (state.isOf(Blocks.RAIL)) this.boostAmount -= 0.01; // 1.0 -> 0.0 in 5s
+            if (state.isOf(Blocks.RAIL)) this.boostAmount -= 1.0 / (20.0 * worldConfig.standardRailTimeToNoBoost);
             else if (state.isOf(Blocks.POWERED_RAIL)) {
                 // powered rail
                 if (state.get(PoweredRailBlock.POWERED)) {
-                    // todo change to 0.01 (0.0->1.0 in 5s)?
-                    if (this.fuel > 0) this.boostAmount += 0.015; // 0.0 -> 1.0 in 3.33s
-                    else this.boostAmount -= 0.01; // 1.0 -> 0.0 in 5s
+                    if (this.fuel > 0) this.boostAmount += 1.0 / (20.0 * worldConfig.timeToMaxBoost);
+                    else this.boostAmount -= 1.0 / (20.0 * worldConfig.standardRailTimeToNoBoost);
                 }
                 // unpowered rail
-                else this.boostAmount -= 0.02; // 1.0 -> 0.0 in 2.5s
+                else this.boostAmount -= 1.0 / (20.0 * worldConfig.unpoweredRailTimeToNoBoost);
             }
 
             // clamp boost

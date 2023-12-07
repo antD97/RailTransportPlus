@@ -8,7 +8,8 @@
     "EntityMixin",
     "FurnaceMinecartEntityMixin",
     "PlayerEntityMixin",
-    "StorageMinecartEntityMixin"
+    "StorageMinecartEntityMixin",
+    "VehicleInventoryMixin"
   ],
   "injectors": {
     "defaultRequire": 1

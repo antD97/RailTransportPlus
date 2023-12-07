@@ -1,11 +1,12 @@
 /*
- * Copyright © 2021 antD97
+ * Copyright © 2021-2023 antD97
  * Licensed under the MIT License https://antD.mit-license.org/
  */
 package com.antd.railtransportplus.mixin;
 
 import com.antd.railtransportplus.CartVisualState;
 import com.antd.railtransportplus.LinkResult;
+import com.antd.railtransportplus.RailTransportPlus;
 import com.antd.railtransportplus.interfaceinject.IRtpAbstractMinecartEntity;
 import com.antd.railtransportplus.interfaceinject.IRtpFurnaceMinecartEntity;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
@@ -14,10 +15,14 @@ import net.minecraft.block.*;
 import net.minecraft.block.enums.RailShape;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.entity.vehicle.FurnaceMinecartEntity;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.predicate.entity.EntityPredicates;
+import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundEvents;
@@ -29,7 +34,9 @@ import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -104,6 +111,11 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
             // if all carts were ticked
             if (train.stream().allMatch(c -> ((IRtpAbstractMinecartEntity) c).isTicked())) {
 
+                final var ridingEntities = train.stream()
+                        .filter(Entity::hasPassengers)
+                        .map(Entity::getFirstPassenger)
+                        .toList();
+
                 for (var cart : train) {
                     final var rtpCart = (IRtpAbstractMinecartEntity) cart;
                     final var next = rtpCart.getNextCart();
@@ -116,59 +128,78 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
                     // trailing carts...
                     if (next != null) {
 
-                        final var distanceToCart = cart.getPos().distanceTo(next.getPos());
+                        // calculate cart pull velocity
+                        final var vectorToCart = next.getPos().subtract(cart.getPos());
 
-                        // too far, unlink
-                        if (distanceToCart > MAX_LINK_DISTANCE) {
-                            rtpCart.unlinkCart(next);
+                        // limit how close the cart can move to the target
+                        var speedLimit = Math.max(vectorToCart.horizontalLength() - 1.67, 0);
+                        // diagonal speed limit
+                        if (vectorToCart.x != 0 && vectorToCart.z != 0) {
+                            speedLimit = Math.sqrt((speedLimit * speedLimit) / 2); // pythagoras
                         }
-                        // move towards next cart
-                        else {
 
-                            // calculate cart pull velocity
-                            final var vectorToCart = next.getPos().subtract(cart.getPos());
+                        final var horizontalSpeed = Math.min(
+                                ((AbstractMinecartEntityMixin) (Object) cart).getMaxSpeed(),
+                                speedLimit
+                        );
 
-                            // limit how close the cart can move to the target
-                            var speedLimit = Math.max(vectorToCart.horizontalLength() - 1.67, 0);
-                            // diagonal speed limit
-                            if (vectorToCart.x != 0 && vectorToCart.z != 0) {
-                                speedLimit = Math.sqrt((speedLimit * speedLimit) / 2); // pythagoras
-                            }
+                        double xVel = 0;
+                        if (vectorToCart.x > 0) xVel = horizontalSpeed;
+                        else if (vectorToCart.x < 0) xVel = -horizontalSpeed;
 
-                            final var horizontalSpeed = Math.min(
-                                    ((AbstractMinecartEntityMixin) (Object) cart).getMaxSpeed(),
-                                    speedLimit
-                            );
+                        double zVel = 0;
+                        if (vectorToCart.z > 0) zVel = horizontalSpeed;
+                        else if (vectorToCart.z < 0) zVel = -horizontalSpeed;
 
-                            double xVel = 0;
-                            if (vectorToCart.x > 0) xVel = horizontalSpeed;
-                            else if (vectorToCart.x < 0) xVel = -horizontalSpeed;
-
-                            double zVel = 0;
-                            if (vectorToCart.z > 0) zVel = horizontalSpeed;
-                            else if (vectorToCart.z < 0) zVel = -horizontalSpeed;
-
-                            // prevent overshoot on corners (moving past the following cart on either axis)
-                            final double cartX = cart.getPos().x;
-                            final double nextX = next.getPos().x;
-                            if ((cartX < nextX && cartX + xVel > nextX)
-                                    || (cartX > nextX && cartX + xVel < nextX)) {
-                                xVel = nextX - cartX;
-                            }
-                            final double cartZ = cart.getPos().z;
-                            final double nextZ = next.getPos().z;
-                            if ((cartZ < nextZ && cartZ + zVel > nextZ)
-                                    || (cartZ > nextZ && cartZ + zVel < nextZ)) {
-                                zVel = nextZ - cartZ;
-                            }
-
-                            // apply cart pull velocity
-                            cart.setVelocity(new Vec3d(xVel, cart.getVelocity().y, zVel));
-
-                            ((AbstractMinecartEntityMixin) (Object) cart).move(true);
+                        // prevent overshoot on corners (moving past the following cart on either axis)
+                        final double cartX = cart.getPos().x;
+                        final double nextX = next.getPos().x;
+                        if ((cartX < nextX && cartX + xVel > nextX)
+                                || (cartX > nextX && cartX + xVel < nextX)) {
+                            xVel = nextX - cartX;
                         }
+                        final double cartZ = cart.getPos().z;
+                        final double nextZ = next.getPos().z;
+                        if ((cartZ < nextZ && cartZ + zVel > nextZ)
+                                || (cartZ > nextZ && cartZ + zVel < nextZ)) {
+                            zVel = nextZ - cartZ;
+                        }
+
+                        // apply cart pull velocity
+                        cart.setVelocity(new Vec3d(xVel, cart.getVelocity().y, zVel));
+
+                        ((AbstractMinecartEntityMixin) (Object) cart).move(true);
 
                         rtpCart.resetTicked();
+
+                        // too far, unlink
+                        if (cart.getPos().distanceTo(next.getPos()) > MAX_LINK_DISTANCE) {
+                            rtpCart.unlinkCart(next);
+                        }
+                    }
+
+                    // velocity in m/s
+                    final var vel = ((AbstractMinecartEntityMixin) (Object) train.getFirst()).getMaxSpeed() * 20;
+
+                    // damage colliding entities
+                    if (vel > 10) {
+
+                        final var collidingEntities = cart.world
+                                .getOtherEntities(
+                                        this,
+                                        cart.getBoundingBox().expand(0.05).stretch(this.getVelocity()),
+                                        EntityPredicates.VALID_LIVING_ENTITY)
+                                .stream().filter(e -> !ridingEntities.contains(e))
+                                .map(e -> (LivingEntity) e)
+                                .toList();
+
+                        // 1 damage at 10 m/s, 20 damage at 60 m/s
+                        final var damage = 0.38f * vel + 2.8f;
+
+                        for (final var e : collidingEntities) {
+                            e.takeKnockback(vel * 0.1, cart.getX() - e.getX(), cart.getZ() - e.getZ());
+                            e.damage(new DamageSource(world.getRegistryManager().get(RegistryKeys.DAMAGE_TYPE).entryOf(RailTransportPlus.TRAIN_DAMAGE)), (float) damage);
+                        }
                     }
                 }
             }
@@ -189,9 +220,9 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
 
         if ((Object) this instanceof FurnaceMinecartEntity) {
             final var thisRtpFurnaceCart = (IRtpFurnaceMinecartEntity) this;
-            thisRtpFurnaceCart.setBoostAmount(
-                      Math.max(thisRtpFurnaceCart.getBoostAmount() - 0.025, 0) // 1.0 -> 0.0 in 2s
-            );
+
+            thisRtpFurnaceCart.setBoostAmount(Math.max(
+                    thisRtpFurnaceCart.getBoostAmount() - (1.0 / (20.0 * worldConfig.unpoweredRailTimeToNoBoost)), 0));
 
             // update train visual states
             final var thisRtpCart = (IRtpAbstractMinecartEntity) this;
@@ -229,6 +260,15 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
                 onLoadNextCart = loadedUuid;
             }
         }
+    }
+
+    /**
+     * Overrides the speed cap in the [moveOnRail] method.
+     * Selector must be checked whenever the Minecraft version changes.
+     */
+    @ModifyConstant(method = "moveOnRail", constant = @Constant(doubleValue = 2.0, ordinal = 0))
+    private double modifyMinVelConst(double value) {
+        return Math.max(value, this.getMaxSpeed());
     }
 
 /* ----------------------------------------------- Interface Injection ---------------------------------------------- */

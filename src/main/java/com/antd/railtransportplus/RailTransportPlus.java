@@ -1,5 +1,5 @@
 /*
- * Copyright © 2021 antD97
+ * Copyright © 2021-2023 antD97
  * Licensed under the MIT License https://antD.mit-license.org/
  */
 package com.antd.railtransportplus;
@@ -13,6 +13,9 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.entity.damage.DamageType;
+import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.RegistryKeys;
 import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +41,9 @@ public class RailTransportPlus implements ModInitializer {
 	public static Config globalConfig = null;
 	public static Config worldConfig = null;
 
+	public static final RegistryKey<DamageType> TRAIN_DAMAGE = RegistryKey.of(RegistryKeys.DAMAGE_TYPE,
+			new Identifier("railtransportplus", "train_damage"));
+
 	@Override
 	public void onInitialize() {
 
@@ -53,7 +59,7 @@ public class RailTransportPlus implements ModInitializer {
 
 		// default global config
 		if (globalConfig == null) {
-			globalConfig = Config.DEFAULT;
+			globalConfig = new Config();
 
 			try (var fw = new FileWriter(globalConfigFile)) {
 				globalConfig.createProperties().store(fw, "Default global config generated on:");

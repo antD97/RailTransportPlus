@@ -1,28 +1,30 @@
 /*
- * Copyright © 2021 antD97
+ * Copyright © 2021-2023 antD97
  * Licensed under the MIT License https://antD.mit-license.org/
  */
 package com.antd.railtransportplus.mixin;
 
-import net.minecraft.entity.player.PlayerEntity;
+import com.antd.railtransportplus.interfaceinject.IRtpStorageMinecartEntity;
 import net.minecraft.entity.vehicle.StorageMinecartEntity;
-import net.minecraft.item.Items;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(StorageMinecartEntity.class)
-public abstract class StorageMinecartEntityMixin {
+public abstract class StorageMinecartEntityMixin implements IRtpStorageMinecartEntity {
 
-    @Inject(at = @At("HEAD"), method = "interact(Lnet/minecraft/entity/player/PlayerEntity;" +
-            "Lnet/minecraft/util/Hand;)Lnet/minecraft/util/ActionResult;", cancellable = true)
-    public void interact(PlayerEntity player, Hand hand, CallbackInfoReturnable<ActionResult> cir) {
-        if (player.isSneaking() && (player.getStackInHand(Hand.MAIN_HAND).isOf(Items.CHAIN)
-                || player.getStackInHand(Hand.OFF_HAND).isOf(Items.CHAIN))) {
-            cir.setReturnValue(ActionResult.SUCCESS);
-        }
+    private boolean skipNextOpen = false;
+
+    @Override
+    public void skipNextOpen() {
+        skipNextOpen = true;
+    }
+
+    @Override
+    public boolean getSkipNextOpen() {
+        return skipNextOpen;
+    }
+
+    @Override
+    public void resetSkipNextOpen() {
+        skipNextOpen = false;
     }
 }
