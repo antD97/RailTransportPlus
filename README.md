@@ -27,7 +27,7 @@ Note: If one or more minecarts in a train end up in unloaded chunks, the entire 
 
 # Furnace Minecart Boosting
 
-Fueled furnace minecarts rolling on powered rails will continue to increase speed until they reach 60 m/s. Boosted 
+Fueled furnace minecarts rolling on powered rails will continue to increase speed until they reach 65 m/s. Boosted 
 furnace minecarts can be combined with cart linking to move players and items across long distances quickly. If a 
 minecart train uses multiple furnace minecarts, all furnace minecarts in the train must be fueled for the boosting 
 to activate.
@@ -50,17 +50,17 @@ Improve functionality to underutilized furnace minecarts
 Provide basic mechanics that can be used by players to create creative complex systems. Some problems are left 
 for the player to solve (e.g. carts going too fast need to slow down for corners) 
 
-Default max boosted furnace cart speed of 60 m/s was chosen to be competitive to other transportation options on
+Default max boosted furnace cart speed of 65 m/s was chosen to be competitive to other transportation options on
 effort for travel speed.
 
 - rail transport plus boosted furnace cart
-  - 60 m/s (42.43 m/s if travelling diagonally by moving across each horizontal axis)
+  - 65 m/s (45.96 m/s if travelling diagonally by moving across each horizontal axis)
   - pros
     - lots of storage/seating
     - afk-able
     - faster than elytra
   - cons
-    - rail infrastructure cost
+    - substantial infrastructure cost
     - optional station infrastructure cost
 - elytra
   - 33.5 m/s
