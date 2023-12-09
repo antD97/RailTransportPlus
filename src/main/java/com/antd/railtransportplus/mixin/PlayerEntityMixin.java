@@ -35,7 +35,7 @@ public abstract class PlayerEntityMixin extends LivingEntity implements IRtpPlay
     @Inject(at = @At("HEAD"), method = "tick()V")
     public void tick(CallbackInfo ci) {
 
-        if (!this.world.isClient()) {
+        if (!this.getWorld().isClient()) {
             final var thisPlayer = (ServerPlayerEntity) (Object) this;
 
             // linking cart message

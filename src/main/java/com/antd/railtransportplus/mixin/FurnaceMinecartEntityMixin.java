@@ -48,7 +48,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity 
     @Inject(at = @At("RETURN"), method = "tick()V")
     public void tick(CallbackInfo ci) {
 
-        if (!this.world.isClient()) {
+        if (!this.getWorld().isClient()) {
 
             // try refueling from chest cart
             if (this.fuel <= 0) {

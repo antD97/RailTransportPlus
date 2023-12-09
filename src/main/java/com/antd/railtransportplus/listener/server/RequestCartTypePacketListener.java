@@ -13,6 +13,7 @@ import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayNetworkHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 
 import static com.antd.railtransportplus.RailTransportPlus.CART_VISUAL_STATE_PACKET_ID;
 
@@ -28,7 +29,7 @@ public class RequestCartTypePacketListener implements ServerPlayNetworking.PlayC
     ) {
 
         // respond to request for cart visual state
-        final var cart = (AbstractMinecartEntity) player.getWorld().getEntity(buf.readUuid());
+        final var cart = (AbstractMinecartEntity) ((ServerWorld) player.getWorld()).getEntity(buf.readUuid());
         final var rtpCart = (IRtpAbstractMinecartEntity) cart;
 
         final var resBuf = PacketByteBufs.create();

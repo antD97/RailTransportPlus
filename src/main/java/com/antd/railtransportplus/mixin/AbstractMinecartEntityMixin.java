@@ -96,7 +96,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
 
     @Inject(at = @At("HEAD"), method = "tick()V")
     public void tickHead(CallbackInfo ci) {
-        if (!this.world.isClient()) {
+        if (!this.getWorld().isClient()) {
             isTicked = false;
             if (prevCart != null || nextCart != null) skipMove = true;
         }
@@ -105,7 +105,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
     @Inject(at = @At("RETURN"), method = "tick()V")
     public void tickReturn(CallbackInfo ci) {
 
-        if (!this.world.isClient() && (prevCart != null || nextCart != null)) {
+        if (!this.getWorld().isClient() && (prevCart != null || nextCart != null)) {
             isTicked = true;
 
             // if all carts were ticked
@@ -184,7 +184,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
                     // damage colliding entities
                     if (vel > 10) {
 
-                        final var collidingEntities = cart.world
+                        final var collidingEntities = cart.getWorld()
                                 .getOtherEntities(
                                         this,
                                         cart.getBoundingBox().expand(0.05).stretch(this.getVelocity()),
@@ -198,7 +198,10 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
 
                         for (final var e : collidingEntities) {
                             e.takeKnockback(vel * 0.1, cart.getX() - e.getX(), cart.getZ() - e.getZ());
-                            e.damage(new DamageSource(world.getRegistryManager().get(RegistryKeys.DAMAGE_TYPE).entryOf(RailTransportPlus.TRAIN_DAMAGE)), (float) damage);
+                            e.damage(new DamageSource(e.getWorld().getRegistryManager().get(RegistryKeys.DAMAGE_TYPE)
+                                            .entryOf(RailTransportPlus.TRAIN_DAMAGE)),
+                                    (float) damage
+                            );
                         }
                     }
                 }
@@ -247,7 +250,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
     @Inject(at = @At("RETURN"), method = "readCustomDataFromNbt(Lnet/minecraft/nbt/NbtCompound;)V")
     public void readCustomDataFromNbt(NbtCompound nbt, CallbackInfo ci) {
         final var thisCart = (AbstractMinecartEntity) (Object) this;
-        final var world = (ServerWorld) thisCart.world;
+        final var world = (ServerWorld) thisCart.getWorld();
 
         if (nbt.containsUuid("nextCart")) {
             final var loadedUuid = nbt.getUuid("nextCart");
@@ -344,7 +347,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
             ((IRtpAbstractMinecartEntity) unlinkedCart).setPrevCart(null);
 
             // item drop
-            if (this.world.getGameRules().get(GameRules.DO_ENTITY_DROPS).get()) this.dropItem(Items.CHAIN);
+            if (this.getWorld().getGameRules().get(GameRules.DO_ENTITY_DROPS).get()) this.dropItem(Items.CHAIN);
 
             // sound
             ((AbstractMinecartEntity) (Object) this).playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
@@ -356,7 +359,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
             ((IRtpAbstractMinecartEntity) unlinkedCart).setNextCart(null);
 
             // item drop
-            if (this.world.getGameRules().get(GameRules.DO_ENTITY_DROPS).get()) this.dropItem(Items.CHAIN);
+            if (this.getWorld().getGameRules().get(GameRules.DO_ENTITY_DROPS).get()) this.dropItem(Items.CHAIN);
 
             // sound
             ((AbstractMinecartEntity) (Object) this).playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
@@ -491,7 +494,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
 
         // send update to clients
         if (oldVisualState != this.visualState) {
-            for (var player : ((ServerWorld) this.world).getPlayers()) {
+            for (var player : ((ServerWorld) this.getWorld()).getPlayers()) {
 
                 final var buf = PacketByteBufs.create();
                 buf.writeUuid(this.getUuid());
@@ -507,10 +510,10 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
         var i = MathHelper.floor(this.getX());
         var j = MathHelper.floor(this.getY());
         var k = MathHelper.floor(this.getZ());
-        if (this.world.getBlockState(new BlockPos(i, j - 1, k)).isIn(BlockTags.RAILS)) --j;
+        if (this.getWorld().getBlockState(new BlockPos(i, j - 1, k)).isIn(BlockTags.RAILS)) --j;
 
         final var blockPos = new BlockPos(i, j, k);
-        final var blockState = this.world.getBlockState(blockPos);
+        final var blockState = this.getWorld().getBlockState(blockPos);
         if (AbstractRailBlock.isRail(blockState)) {
 
             if (isTrailing) { // trailing carts ignore powered rails

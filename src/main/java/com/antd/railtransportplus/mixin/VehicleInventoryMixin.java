@@ -16,7 +16,7 @@ public interface VehicleInventoryMixin extends IRtpVehicleInventory {
 
     @Inject(at = @At("HEAD"), method = "open", cancellable = true)
     default void open(PlayerEntity player, CallbackInfoReturnable<ActionResult> cir) {
-        if (!player.world.isClient) {
+        if (!player.getWorld().isClient) {
             final var rtpStorageCart = ((IRtpStorageMinecartEntity) this);
 
             if (rtpStorageCart.getSkipNextOpen()) {

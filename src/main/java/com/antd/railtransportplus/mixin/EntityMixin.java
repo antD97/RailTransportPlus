@@ -19,7 +19,7 @@ public abstract class EntityMixin {
     public void remove(Entity.RemovalReason reason, CallbackInfo ci) {
         final var thisEntity = (Entity) (Object) this;
 
-        if (!thisEntity.world.isClient() && this instanceof final IRtpAbstractMinecartEntity thisCart) {
+        if (!thisEntity.getWorld().isClient() && this instanceof final IRtpAbstractMinecartEntity thisCart) {
             thisCart.unlinkBothCarts();
         }
     }
