@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2021-2023 antD97
+ * Licensed under the MIT License https://antD.mit-license.org/
+ */
 package com.antd.railtransportplus.mixin;
 
 import com.antd.railtransportplus.interfaceinject.IRtpStorageMinecartEntity;

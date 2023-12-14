@@ -41,7 +41,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.LinkedList;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.StreamSupport;
 
 import static com.antd.railtransportplus.RailTransportPlus.CART_VISUAL_STATE_PACKET_ID;
 import static com.antd.railtransportplus.RailTransportPlus.worldConfig;
@@ -63,7 +65,10 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
 
     private boolean ignorePassenger = false;
 
-    private boolean skipMove = false;
+    private boolean useCustomMove = false;
+
+    private Vec3d prevVel = null;
+    private Vec3d prevPrevVel = null;
 
     public AbstractMinecartEntityMixin(EntityType<?> type, World world) {
         super(type, world);
@@ -97,33 +102,47 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
     @Inject(at = @At("HEAD"), method = "tick()V")
     public void tickHead(CallbackInfo ci) {
         if (!this.getWorld().isClient()) {
+
             isTicked = false;
-            if (prevCart != null || nextCart != null) skipMove = true;
+
+            // carts part of a train skip vanilla move and use move in [tickReturn]
+            if (prevCart != null || nextCart != null) useCustomMove = true;
+
+            // boosted furnace carts skip vanilla move and use move in [tickReturn]
+            if ((Object) this instanceof FurnaceMinecartEntity
+                    && ((IRtpFurnaceMinecartEntity) this).getBoostAmount() > 0) {
+                useCustomMove = true;
+            }
+
+            // reset custom move values if not using custom move
+            if (!useCustomMove) {
+                prevVel = null;
+                prevPrevVel = null;
+            }
         }
     }
 
     @Inject(at = @At("RETURN"), method = "tick()V")
     public void tickReturn(CallbackInfo ci) {
 
-        if (!this.getWorld().isClient() && (prevCart != null || nextCart != null)) {
+        if (!this.getWorld().isClient() && useCustomMove) {
             isTicked = true;
 
             // if all carts were ticked
             if (train.stream().allMatch(c -> ((IRtpAbstractMinecartEntity) c).isTicked())) {
 
                 final var ridingEntities = train.stream()
-                        .filter(Entity::hasPassengers)
-                        .map(Entity::getFirstPassenger)
+                        .flatMap(e -> StreamSupport.stream(e.getPassengersDeep().spliterator(), false))
                         .toList();
 
                 for (var cart : train) {
                     final var rtpCart = (IRtpAbstractMinecartEntity) cart;
                     final var next = rtpCart.getNextCart();
 
-                    ((AbstractMinecartEntityMixin) (Object) cart).resetSkipMove();
+                    ((AbstractMinecartEntityMixin) (Object) cart).resetUseCustomMove();
 
                     // head cart
-                    if (next == null) ((AbstractMinecartEntityMixin) (Object) cart).move(false);
+                    if (next == null) ((AbstractMinecartEntityMixin) (Object) cart).move(false, ridingEntities);
 
                     // trailing carts...
                     if (next != null) {
@@ -168,40 +187,13 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
                         // apply cart pull velocity
                         cart.setVelocity(new Vec3d(xVel, cart.getVelocity().y, zVel));
 
-                        ((AbstractMinecartEntityMixin) (Object) cart).move(true);
+                        ((AbstractMinecartEntityMixin) (Object) cart).move(true, ridingEntities);
 
                         rtpCart.resetTicked();
 
                         // too far, unlink
                         if (cart.getPos().distanceTo(next.getPos()) > MAX_LINK_DISTANCE) {
                             rtpCart.unlinkCart(next);
-                        }
-                    }
-
-                    // velocity in m/s
-                    final var vel = ((AbstractMinecartEntityMixin) (Object) train.getFirst()).getMaxSpeed() * 20;
-
-                    // damage colliding entities
-                    if (vel > 10) {
-
-                        final var collidingEntities = cart.getWorld()
-                                .getOtherEntities(
-                                        this,
-                                        cart.getBoundingBox().expand(0.05).stretch(this.getVelocity()),
-                                        EntityPredicates.VALID_LIVING_ENTITY)
-                                .stream().filter(e -> !ridingEntities.contains(e))
-                                .map(e -> (LivingEntity) e)
-                                .toList();
-
-                        // 1 damage at 10 m/s, 20 damage at 60 m/s
-                        final var damage = 0.38f * vel + 2.8f;
-
-                        for (final var e : collidingEntities) {
-                            e.takeKnockback(vel * 0.1, cart.getX() - e.getX(), cart.getZ() - e.getZ());
-                            e.damage(new DamageSource(e.getWorld().getRegistryManager().get(RegistryKeys.DAMAGE_TYPE)
-                                            .entryOf(RailTransportPlus.TRAIN_DAMAGE)),
-                                    (float) damage
-                            );
                         }
                     }
                 }
@@ -212,13 +204,13 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
     @Inject(at = @At("HEAD"), method = "moveOnRail(Lnet/minecraft/util/math/BlockPos;" +
             "Lnet/minecraft/block/BlockState;)V", cancellable = true)
     public void moveOnRailHead(BlockPos pos, BlockState state, CallbackInfo ci) {
-        if (skipMove) ci.cancel();
+        if (useCustomMove) ci.cancel();
         if (nextCart != null) ignorePassenger = true;
     }
 
     @Inject(at = @At("HEAD"), method = "moveOffRail()V", cancellable = true)
     public void moveOffRail(CallbackInfo ci) {
-        if (skipMove) ci.cancel();
+        if (useCustomMove) ci.cancel();
         ignorePassenger = false;
 
         if ((Object) this instanceof FurnaceMinecartEntity) {
@@ -350,7 +342,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
             if (this.getWorld().getGameRules().get(GameRules.DO_ENTITY_DROPS).get()) this.dropItem(Items.CHAIN);
 
             // sound
-            ((AbstractMinecartEntity) (Object) this).playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
+            this.playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
 
         } else if (this.prevCart == cart) {
             // unlink
@@ -362,7 +354,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
             if (this.getWorld().getGameRules().get(GameRules.DO_ENTITY_DROPS).get()) this.dropItem(Items.CHAIN);
 
             // sound
-            ((AbstractMinecartEntity) (Object) this).playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
+            this.playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
         }
         else return;
 
@@ -413,8 +405,13 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
     }
 
     @Override
-    public void resetSkipMove() {
-        this.skipMove = false;
+    public boolean getUseCustomMove() {
+        return this.useCustomMove;
+    }
+
+    @Override
+    public void resetUseCustomMove() {
+        this.useCustomMove = false;
     }
 
     /** Creates an updated train list with all the linked carts. */
@@ -506,7 +503,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
     }
 
     @Override
-    public void move(boolean isTrailing) {
+    public void move(boolean isTrailing, List<Entity> ridingEntities) {
         var i = MathHelper.floor(this.getX());
         var j = MathHelper.floor(this.getY());
         var k = MathHelper.floor(this.getZ());
@@ -514,6 +511,9 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
 
         final var blockPos = new BlockPos(i, j, k);
         final var blockState = this.getWorld().getBlockState(blockPos);
+        final var prevPos = this.getPos();
+        final var prevBoundingBox = this.getBoundingBox();
+
         if (AbstractRailBlock.isRail(blockState)) {
 
             if (isTrailing) { // trailing carts ignore powered rails
@@ -549,6 +549,65 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
             this.setVelocity(this.getVelocity().add(0.0, this.isTouchingWater() ? -0.005 : -0.04, 0.0));
             this.moveOffRail();
         }
+
+        final var vel = this.getPos().subtract(prevPos);
+        var fastestVel = vel;
+
+        if (prevVel != null && prevVel.horizontalLength() > fastestVel.horizontalLength()) {
+            fastestVel = prevVel;
+        }
+        if (prevPrevVel != null && prevPrevVel.horizontalLength() > fastestVel.horizontalLength()) {
+            fastestVel = prevPrevVel;
+        }
+        final var fastestVelMagnitude = fastestVel.horizontalLength();
+
+        // damage and knock back colliding entities
+        if (fastestVelMagnitude * 20 > 10) {
+            final var collidingEntities = this.getWorld()
+                    .getOtherEntities(
+                            this,
+                            prevBoundingBox.expand(0.05).stretch(fastestVel.multiply(1.2)),
+                    EntityPredicates.VALID_LIVING_ENTITY)
+            .stream().filter(e -> !ridingEntities.contains(e))
+            .map(e -> (LivingEntity) e)
+            .toList();
+
+            for (final var e : collidingEntities) {
+                final var posRelToCart = e.getPos().subtract(this.getPos());
+                final var knockback = fastestVel.normalize()
+                        // add the relative position of the colliding entity and the cart that is perpendicular to
+                        // the cart's velocity
+                        .add(oproj(fastestVel, posRelToCart.normalize().multiply(0.333)));
+
+                // 1 knockback at 10 m/s, 10 knockback at 60 m/s (capped at 10)
+                e.takeKnockback(Math.min(fastestVelMagnitude * 20 * 0.18 - 0.8, 10), -knockback.x, -knockback.z);
+                // 1 damage at 10 m/s, 20 damage at 60 m/s
+                e.damage(
+                        new DamageSource(e.getWorld().getRegistryManager().get(RegistryKeys.DAMAGE_TYPE)
+                                .entryOf(RailTransportPlus.TRAIN_DAMAGE)),
+                        (float) (fastestVelMagnitude * 20.0 * 0.38 - 2.8) // 1 damage at 10 m/s, 20 damage at 60 m/s
+                );
+            }
+        }
+
+        // leading stopped furnace carts...
+        if (!isTrailing
+                && (Object) this instanceof FurnaceMinecartEntity
+                && vel.horizontalLength() == 0
+                && prevVel != null && prevVel.horizontalLength() == 0) {
+
+            // ...reset boost
+            ((IRtpFurnaceMinecartEntity) this).setBoostAmount(0);
+
+            // ...explode on sudden stops (15 -> 0 m/s in 2 ticks)
+            if (fastestVelMagnitude * 15 >= 20) {
+                this.getWorld().createExplosion(null, this.getX(), this.getY(), this.getZ(), 2.0F,
+                        World.ExplosionSourceType.MOB);
+            }
+        }
+
+        prevPrevVel = prevVel;
+        prevVel = vel;
     }
 
     @Override
@@ -586,5 +645,17 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
         if (updatedTrain.size() - furnaceCartCount > cartLimit) {
             for (var c : updatedTrain) ((IRtpAbstractMinecartEntity) c).unlinkBothCarts();
         }
+    }
+
+    // vector projection
+    // https://en.wikipedia.org/wiki/Vector_projection
+    private Vec3d proj(Vec3d v, Vec3d a) {
+        return a.multiply(v.dotProduct(a) / (Math.pow(a.length(), 2)));
+    }
+
+    // perpendicular vector projection
+    // https://en.wikipedia.org/wiki/Vector_projection
+    private Vec3d oproj(Vec3d v, Vec3d a) {
+        return a.subtract(proj(a, v));
     }
 }

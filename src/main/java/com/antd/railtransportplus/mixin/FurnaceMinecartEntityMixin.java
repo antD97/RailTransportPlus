@@ -37,6 +37,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity 
     @Shadow protected abstract void setLit(boolean lit);
 
     @Shadow private int fuel;
+
     private double boostAmount = 0.0;
 
     protected FurnaceMinecartEntityMixin(EntityType<?> entityType, World world) {
@@ -110,17 +111,26 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity 
 
         if (thisRtpCart.getNextCart() == null) {
 
-            // standard rail
-            if (state.isOf(Blocks.RAIL)) this.boostAmount -= 1.0 / (20.0 * worldConfig.standardRailTimeToNoBoost);
-            else if (state.isOf(Blocks.POWERED_RAIL)) {
-                // powered rail
-                if (state.get(PoweredRailBlock.POWERED)) {
-                    if (this.fuel > 0) this.boostAmount += 1.0 / (20.0 * worldConfig.timeToMaxBoost);
-                    else this.boostAmount -= 1.0 / (20.0 * worldConfig.standardRailTimeToNoBoost);
+            final var train = ((IRtpAbstractMinecartEntity) this).getTrain();
+
+            // all furnace carts are fueled
+            if (train.stream().filter(c -> c instanceof FurnaceMinecartEntity)
+                    .allMatch(c -> ((FurnaceMinecartEntityMixin) c).fuel > 0)) {
+                // standard rail
+                if (state.isOf(Blocks.RAIL)) {
+                    this.boostAmount -= 1.0 / (20.0 * worldConfig.standardRailTimeToNoBoost);
+                } else if (state.isOf(Blocks.POWERED_RAIL)) {
+                    // powered rail
+                    if (state.get(PoweredRailBlock.POWERED)) {
+                        if (this.fuel > 0) this.boostAmount += 1.0 / (20.0 * worldConfig.timeToMaxBoost);
+                        else this.boostAmount -= 1.0 / (20.0 * worldConfig.standardRailTimeToNoBoost);
+                    }
+                    // unpowered rail
+                    else this.boostAmount -= 1.0 / (20.0 * worldConfig.unpoweredRailTimeToNoBoost);
                 }
-                // unpowered rail
-                else this.boostAmount -= 1.0 / (20.0 * worldConfig.unpoweredRailTimeToNoBoost);
             }
+            // use unpowered rail slowdown when not all carts fueled
+            else this.boostAmount -= 1.0 / (20.0 * worldConfig.unpoweredRailTimeToNoBoost);
 
             // clamp boost
             this.boostAmount = Math.min(Math.max(this.boostAmount, 0), 1.0);
@@ -133,9 +143,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity 
 
             // if visual state changed, update the entire train
             if (oldVisualState != thisRtpCart.getVisualState()) {
-                for (final var cart : ((IRtpAbstractMinecartEntity) this).getTrain()) {
-                    ((IRtpAbstractMinecartEntity) cart).updateVisualState();
-                }
+                for (final var cart : train) ((IRtpAbstractMinecartEntity) cart).updateVisualState();
             }
         }
     }

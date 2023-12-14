@@ -6,9 +6,11 @@ package com.antd.railtransportplus.interfaceinject;
 
 import com.antd.railtransportplus.CartVisualState;
 import com.antd.railtransportplus.LinkResult;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 
 import java.util.LinkedList;
+import java.util.List;
 import java.util.UUID;
 
 public interface IRtpAbstractMinecartEntity {
@@ -61,10 +63,12 @@ public interface IRtpAbstractMinecartEntity {
      */
     void resetTicked();
 
+    boolean getUseCustomMove();
+
     /**
      * Sets this skip move status back to false.
      */
-    void resetSkipMove();
+    void resetUseCustomMove();
 
     /**
      * Creates an updated train list with all the linked carts.
@@ -102,5 +106,5 @@ public interface IRtpAbstractMinecartEntity {
 
     boolean getIgnorePassenger();
 
-    void move(boolean isTrailing);
+    void move(boolean isTrailing, List<Entity> ridingEntities);
 }

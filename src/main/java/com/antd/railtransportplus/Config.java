@@ -9,6 +9,8 @@ import java.util.Properties;
 /** Rail Transport Plus configuration settings. */
 public class Config {
 
+    // TODO clean up with easy config registering, min/max values, & catch catching numberformatexceptions
+
     /** Boosted furnace cart max speed. */
     public final double maxBoostedSpeed;
     /** Time it takes for a fueled furnace minecart on a powered rail to reach maximum boost (in seconds). */
