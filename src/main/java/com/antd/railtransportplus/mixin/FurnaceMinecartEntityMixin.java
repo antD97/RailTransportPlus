@@ -4,6 +4,7 @@
  */
 package com.antd.railtransportplus.mixin;
 
+import com.antd.railtransportplus.Config;
 import com.antd.railtransportplus.interfaceinject.IRtpAbstractMinecartEntity;
 import com.antd.railtransportplus.interfaceinject.IRtpFurnaceMinecartEntity;
 import net.minecraft.block.BlockState;
@@ -27,8 +28,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
-import static com.antd.railtransportplus.RailTransportPlus.worldConfig;
 
 @Mixin(FurnaceMinecartEntity.class)
 public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity implements IRtpFurnaceMinecartEntity {
@@ -95,7 +94,7 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity 
     public void getMaxSpeed(CallbackInfoReturnable<Double> cir) {
         final var defaultMaxSpeed = cir.getReturnValue();
         // mpt (meters per tick)
-        final var boostMpt = worldConfig.maxBoostedSpeed / 20.0;
+        final var boostMpt = Config.worldConfig.get(Config.MAX_BOOSTED_SPEED) / 20.0;
 
         if (((IRtpAbstractMinecartEntity) this).getNextCart() != null) {
             cir.setReturnValue(boostMpt * 2.0);
@@ -118,19 +117,26 @@ public abstract class FurnaceMinecartEntityMixin extends AbstractMinecartEntity 
                     .allMatch(c -> ((FurnaceMinecartEntityMixin) c).fuel > 0)) {
                 // standard rail
                 if (state.isOf(Blocks.RAIL)) {
-                    this.boostAmount -= 1.0 / (20.0 * worldConfig.standardRailTimeToNoBoost);
+                    this.boostAmount -= 1.0 / (20.0 * Config.worldConfig.get(Config.STANDARD_RAIL_TIME_TO_NO_BOOST));
                 } else if (state.isOf(Blocks.POWERED_RAIL)) {
                     // powered rail
                     if (state.get(PoweredRailBlock.POWERED)) {
-                        if (this.fuel > 0) this.boostAmount += 1.0 / (20.0 * worldConfig.timeToMaxBoost);
-                        else this.boostAmount -= 1.0 / (20.0 * worldConfig.standardRailTimeToNoBoost);
+                        if (this.fuel > 0) {
+                            this.boostAmount += 1.0 / (20.0 * Config.worldConfig.get(Config.TIME_TO_MAX_BOOST));
+                        } else {
+                            this.boostAmount
+                                    -= 1.0 / (20.0 * Config.worldConfig.get(Config.STANDARD_RAIL_TIME_TO_NO_BOOST));
+                        }
                     }
                     // unpowered rail
-                    else this.boostAmount -= 1.0 / (20.0 * worldConfig.unpoweredRailTimeToNoBoost);
+                    else {
+                        this.boostAmount
+                                -= 1.0 / (20.0 * Config.worldConfig.get(Config.UNPOWERED_RAIL_TIME_TO_NO_BOOST));
+                    }
                 }
             }
             // use unpowered rail slowdown when not all carts fueled
-            else this.boostAmount -= 1.0 / (20.0 * worldConfig.unpoweredRailTimeToNoBoost);
+            else this.boostAmount -= 1.0 / (20.0 * Config.worldConfig.get(Config.UNPOWERED_RAIL_TIME_TO_NO_BOOST));
 
             // clamp boost
             this.boostAmount = Math.min(Math.max(this.boostAmount, 0), 1.0);

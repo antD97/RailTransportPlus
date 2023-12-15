@@ -20,12 +20,6 @@ import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.Properties;
-
 /** Main entrypoint. */
 public class RailTransportPlus implements ModInitializer {
 
@@ -38,38 +32,11 @@ public class RailTransportPlus implements ModInitializer {
 	public static final Identifier CART_VISUAL_STATE_PACKET_ID =
 			new Identifier("railtransportplus", "cart-visual-state");
 
-	public static Config globalConfig = null;
-	public static Config worldConfig = null;
-
 	public static final RegistryKey<DamageType> TRAIN_DAMAGE = RegistryKey.of(RegistryKeys.DAMAGE_TYPE,
 			new Identifier("railtransportplus", "train_damage"));
 
 	@Override
-	public void onInitialize() {
-
-		final var globalConfigFile = new File("config/rail-transport-plus.properties");
-
-		// load global config
-		try (final var fr = new FileReader(globalConfigFile)) {
-			final var properties = new Properties();
-			properties.load(fr);
-			globalConfig = Config.loadConfig(properties);
-		} catch (IOException ignored) {
-		}
-
-		// default global config
-		if (globalConfig == null) {
-			globalConfig = new Config();
-
-			try (var fw = new FileWriter(globalConfigFile)) {
-				globalConfig.createProperties().store(fw, "Default global config generated on:");
-				LOGGER.info("Generated default global config.");
-			} catch (IOException e) {
-				LOGGER.error("Failed to write global properties file.", e);
-			}
-		}
-
-		// register listeners
+	public void onInitialize()  {
 		UseEntityCallback.EVENT.register(new UseEntityListener());
 		ServerWorldEvents.LOAD.register(new ServerWorldLoadListener());
 		ServerEntityEvents.ENTITY_LOAD.register(new ServerEntityLoadListener());

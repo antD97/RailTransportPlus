@@ -5,6 +5,7 @@
 package com.antd.railtransportplus.mixin;
 
 import com.antd.railtransportplus.CartVisualState;
+import com.antd.railtransportplus.Config;
 import com.antd.railtransportplus.LinkResult;
 import com.antd.railtransportplus.RailTransportPlus;
 import com.antd.railtransportplus.interfaceinject.IRtpAbstractMinecartEntity;
@@ -46,7 +47,6 @@ import java.util.UUID;
 import java.util.stream.StreamSupport;
 
 import static com.antd.railtransportplus.RailTransportPlus.CART_VISUAL_STATE_PACKET_ID;
-import static com.antd.railtransportplus.RailTransportPlus.worldConfig;
 
 @Mixin(AbstractMinecartEntity.class)
 public abstract class AbstractMinecartEntityMixin extends Entity implements IRtpAbstractMinecartEntity {
@@ -86,6 +86,8 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
 
 /* ----------------------------------------------------- Inject ----------------------------------------------------- */
 
+    @Shadow public abstract void dropItems(DamageSource damageSource);
+
     @Inject(at = @At("RETURN"), method = "<init>(Lnet/minecraft/entity/EntityType;" +
         "Lnet/minecraft/world/World;)V")
     public void constructor(CallbackInfo ci) {
@@ -94,7 +96,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
 
     @Inject(at = @At("RETURN"), method = "getMaxSpeed()D", cancellable = true)
     public void getMaxSpeed(CallbackInfoReturnable<Double> cir) {
-        final var boostMpt = worldConfig.maxBoostedSpeed / 20.0;
+        final var boostMpt = Config.worldConfig.get(Config.MAX_BOOSTED_SPEED) / 20.0;
 
         if (nextCart != null) cir.setReturnValue(boostMpt * 2.0); // x2 to let trailing cars catch up
     }
@@ -217,7 +219,9 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
             final var thisRtpFurnaceCart = (IRtpFurnaceMinecartEntity) this;
 
             thisRtpFurnaceCart.setBoostAmount(Math.max(
-                    thisRtpFurnaceCart.getBoostAmount() - (1.0 / (20.0 * worldConfig.unpoweredRailTimeToNoBoost)), 0));
+                    thisRtpFurnaceCart.getBoostAmount()
+                            - (1.0 / (20.0 * Config.worldConfig.get(Config.OFF_RAIL_TIME_TO_NO_BOOST))),
+                    0));
 
             // update train visual states
             final var thisRtpCart = (IRtpAbstractMinecartEntity) this;
@@ -299,12 +303,14 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
                 // furnace cart at front only check
                 if (!((Object) this instanceof FurnaceMinecartEntity)) return LinkResult.FURNACE_FRONT_ONLY;
                 // furnace cart count check
-                else if (furnaceCartCount > worldConfig.maxFurnaceCartsPerTrain) return LinkResult.FURNACE_CART_LIMIT;
+                else if (furnaceCartCount > Config.worldConfig.get(Config.MAX_FURNACE_CARTS_PER_TRAIN)) {
+                    return LinkResult.FURNACE_CART_LIMIT;
+                }
             } else {
                 // carts per furnace cart check
                 final var cartLimit = furnaceCartCount > 0 ?
-                        worldConfig.maxCartsPerFurnaceCart * furnaceCartCount
-                        : worldConfig.maxCartsPerFurnaceCart + 1;
+                        Config.worldConfig.get(Config.MAX_CARTS_PER_FURNACE_CART) * furnaceCartCount
+                        : Config.worldConfig.get(Config.MAX_CARTS_PER_FURNACE_CART) + 1;
 
                 if (this.train.size() + otherCartTrain.size() - furnaceCartCount > cartLimit) {
                     return LinkResult.CART_LIMIT;
@@ -342,7 +348,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
             if (this.getWorld().getGameRules().get(GameRules.DO_ENTITY_DROPS).get()) this.dropItem(Items.CHAIN);
 
             // sound
-            this.playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
+            this.playSound(SoundEvents.BLOCK_CHAIN_BREAK, 1.0F, 1.0F);
 
         } else if (this.prevCart == cart) {
             // unlink
@@ -354,7 +360,7 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
             if (this.getWorld().getGameRules().get(GameRules.DO_ENTITY_DROPS).get()) this.dropItem(Items.CHAIN);
 
             // sound
-            this.playSound(SoundEvents.BLOCK_CHAIN_PLACE, 1.0F, 1.0F);
+            this.playSound(SoundEvents.BLOCK_CHAIN_BREAK, 1.0F, 1.0F);
         }
         else return;
 
@@ -590,19 +596,22 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
             }
         }
 
-        // leading stopped furnace carts...
-        if (!isTrailing
-                && (Object) this instanceof FurnaceMinecartEntity
-                && vel.horizontalLength() == 0
-                && prevVel != null && prevVel.horizontalLength() == 0) {
+        // leading stopped furnace carts
+        if (!isTrailing && (Object) this instanceof FurnaceMinecartEntity && vel.horizontalLength() == 0) {
 
-            // ...reset boost
+            // reset boost
             ((IRtpFurnaceMinecartEntity) this).setBoostAmount(0);
 
-            // ...explode on sudden stops (15 -> 0 m/s in 2 ticks)
+            // on sudden stops (15 -> 0 m/s in 2 ticks)
             if (fastestVelMagnitude * 15 >= 20) {
-                this.getWorld().createExplosion(null, this.getX(), this.getY(), this.getZ(), 2.0F,
-                        World.ExplosionSourceType.MOB);
+                switch (Config.worldConfig.get(Config.TRAIN_CRASH_MODE)) {
+                    case Config.TRAIN_CRASH_MODE_BREAK -> {
+                        this.playSound(SoundEvents.ENTITY_GENERIC_EXPLODE, 1.0F, 1.0F);
+                        this.dropItems(null);
+                    }
+                    case Config.TRAIN_CRASH_MODE_EXPLODE -> this.getWorld().createExplosion(null, this.getX(),
+                            this.getY(), this.getZ(), 2.0F, World.ExplosionSourceType.MOB);
+                }
             }
         }
 
@@ -639,8 +648,8 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
         final var furnaceCartCount = updatedTrain.stream()
                 .filter((c) -> c instanceof FurnaceMinecartEntity).count();
         final var cartLimit = furnaceCartCount > 0 ?
-                worldConfig.maxCartsPerFurnaceCart * furnaceCartCount
-                : worldConfig.maxFurnaceCartsPerTrain + 1;
+                Config.worldConfig.get(Config.MAX_CARTS_PER_FURNACE_CART) * furnaceCartCount
+                : Config.worldConfig.get(Config.MAX_CARTS_PER_FURNACE_CART) + 1;
 
         if (updatedTrain.size() - furnaceCartCount > cartLimit) {
             for (var c : updatedTrain) ((IRtpAbstractMinecartEntity) c).unlinkBothCarts();
