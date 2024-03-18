@@ -20,6 +20,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.entity.vehicle.FurnaceMinecartEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.predicate.entity.EntityPredicates;
@@ -86,7 +87,9 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
 
 /* ----------------------------------------------------- Inject ----------------------------------------------------- */
 
-    @Shadow public abstract void dropItems(DamageSource damageSource);
+//    @Shadow public abstract void dropItems(DamageSource damageSource);
+
+    @Shadow public abstract ItemStack getPickBlockStack();
 
     @Inject(at = @At("RETURN"), method = "<init>(Lnet/minecraft/entity/EntityType;" +
         "Lnet/minecraft/world/World;)V")
@@ -606,8 +609,9 @@ public abstract class AbstractMinecartEntityMixin extends Entity implements IRtp
             if (fastestVelMagnitude * 15 >= 20) {
                 switch (Config.worldConfig.get(Config.TRAIN_CRASH_MODE)) {
                     case Config.TRAIN_CRASH_MODE_BREAK -> {
+                        this.kill();
                         this.playSound(SoundEvents.ENTITY_GENERIC_EXPLODE, 1.0F, 1.0F);
-                        this.dropItems(null);
+                        this.dropItem(this.getPickBlockStack().getItem());
                     }
                     case Config.TRAIN_CRASH_MODE_EXPLODE -> this.getWorld().createExplosion(null, this.getX(),
                             this.getY(), this.getZ(), 2.0F, World.ExplosionSourceType.MOB);

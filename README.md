@@ -41,8 +41,6 @@ Takes 7.5s for a non boosted furnace cart to reach max boost while on a powered 
 Takes 5s for a max boost furnace cart to return to zero total boost
 
 
-
-
 # Design, Objectives, and Balance
 
 Improve functionality to underutilized furnace minecarts
